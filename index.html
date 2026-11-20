@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Интерактивный 2D CAD-конструктор и 3D-симулятор формирования FFS-мешка с боковыми фальцами (ТК / РЛ / POLYTEX)." />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='Arial,sans-serif' font-weight='800' font-size='24' fill='white'%3EFFS%3C/text%3E%3C/svg%3E" />
 <title>CAD-конструктор и 3D-симулятор FFS-мешка (ТК / РЛ)</title>
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=9wuU558t53EYoyhl7cQ0W_BDwwkT0fUSNBu8Qf1gAwdwlc0nxzU5mY--MLy29bpCprTWXKEVtPt_u0gdBtmCKa1tTaMU2n8oTuFXItfApMeRankgwehgMomcfe5aD4YqzNZ3H7M4h_eWUx-s21Il0T7t9FPn0az8OFQbDWd0HXRTsfpzeNixT6Inq3qz6n9KPYg0mA-7YwMK2VNLTrYxDvrlE5pXqvvKzy75y5sdDvsszUbUY8rJX4B7EsTgAYUbo6kioWT4ztAi3Xve4F0-700R7z1zwBF1I3ZnXX9577WFWuYIFmnL-D5C-tGjm3ko" charset="UTF-8"></script><style>
+<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=KUdHdpuZwdDejMvpQjAT1LbREWcCcbKRHtr1c6YFKEtnDo-iHuF_5tT5m45LFqqkgt4o7yKfBq3Lqh_pAlQ4_tU-ZxeMDIkHYvbRqwLiXsddRpxrjYk0xytSGVRnmC4_ivgcS7PCX_akWhNa5VIi7nfdz1G3OlobX0oS-aRO36cxbZ7Kfjfp9Hevu9P4F5ZPUiSlSLpQr2OsOLoUIKWBKPyibIde2_diexOtiRrbPd_iTMnk8sgcsHdqJ36AJwsYlkW-EstPRx7ER8T4Jgr7UJtQDGj8E8EIEEFi4rfyCpAO90LobpAWJlXTNNZ-154_" charset="UTF-8"></script><style>
   :root {
     --bg: #f1f5f9;
     --panel: #ffffff;
@@ -793,8 +795,20 @@
   </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';s.onload=function(){if(typeof init3D==='function'&&!scene){init3D();updateAll(true);}};document.head.appendChild(s);"></script>
 <script>
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    const rad = Math.min(Array.isArray(r) ? r[0] : (r || 0), w / 2, h / 2);
+    this.moveTo(x + rad, y);
+    this.arcTo(x + w, y, x + w, y + h, rad);
+    this.arcTo(x + w, y + h, x, y + h, rad);
+    this.arcTo(x, y + h, x, y, rad);
+    this.arcTo(x, y, x + w, y, rad);
+    this.closePath();
+    return this;
+  };
+}
 // ===================== STATE & PRESETS =====================
 const PRESETS = {
   tk03343: {
