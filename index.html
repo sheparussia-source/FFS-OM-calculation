@@ -1,946 +1,1622 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="h-full bg-slate-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CAD-Конструктор FFS-мешка (ТК 03343) & 3D-Симулятор</title>
+    <title>CAD-конструктор и 3D-симулятор FFS-мешка (ТК / РЛ)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js & OrbitControls -->
+    <!-- Three.js for 3D simulation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'JetBrains+Mono', monospace; }
-        /* Custom scrollbars */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        /* Canvas container styles */
-        .canvas-container { position: relative; width: 100%; height: 100%; min-height: 420px; }
-        /* Radial indicator gradients */
-        .bg-grid-pattern {
-            background-size: 20px 20px;
-            background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+                    },
+                    colors: {
+                        cad: {
+                            blue: '#2563eb',
+                            hover: '#1d4ed8',
+                            bg: '#f8fafc',
+                            panel: '#ffffff',
+                            border: '#cbd5e1',
+                            text: '#0f172a',
+                            muted: '#64748b'
+                        }
+                    }
+                }
+            }
         }
+    </script>
+    <style>
+        /* Custom scrollbars for CAD panels */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .canvas-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
+        .no-select { user-select: none; -webkit-user-select: none; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col overflow-x-hidden select-none">
+<body class="h-full flex flex-col font-sans text-cad-text bg-slate-100 overflow-hidden no-select">
 
-    <!-- TOP NAVIGATION BAR -->
-    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-50">
-        <div class="flex items-center space-x-3">
-            <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/30 text-white">
+    <!-- TOP COMPACT HEADER BAR -->
+    <header class="h-14 bg-white border-b border-cad-border flex items-center justify-between px-4 z-20 shrink-0 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold font-mono text-sm shadow">
                 FFS
             </div>
             <div>
-                <h1 class="text-base font-semibold leading-tight text-white flex items-center gap-2">
-                    <span>CAD & 3D Симулятор FFS-Мешка</span>
-                    <span class="text-xs font-mono bg-indigo-950 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded">ТК 03343</span>
-                </h1>
-                <p class="text-xs text-slate-400">ПЭ имп. бел. с рис. для упаковки ФФС | POLYTEX Kinematics</p>
+                <h1 class="font-bold text-slate-900 text-base leading-tight">CAD-конструктор и 3D-симулятор FFS-мешка</h1>
+                <p class="text-xs text-cad-muted">Техкарта (ТК) / Технологический регламент (РЛ)</p>
             </div>
         </div>
 
-        <div class="flex items-center space-x-2">
-            <!-- Preset Selector -->
-            <select id="presetSelect" onchange="loadPreset(this.value)" class="bg-slate-800 text-xs border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500">
-                <option value="tk03343">Стандарт ТК 03343 (390х200)</option>
-                <option value="compact">Компакт (350х160)</option>
-                <option value="heavy">Усиленный Рукав (420х220)</option>
-            </select>
-            
-            <button onclick="autoAlignSymmetry()" class="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span>Авто-симметрия</span>
+        <!-- PRESET BUTTONS -->
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Пресеты:</span>
+            <button onclick="loadPreset('tk03343')" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 border border-slate-300 rounded transition shadow-sm">
+                ТК 03343 (1220×780)
             </button>
+            <button onclick="loadPreset('rl1')" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 border border-slate-300 rounded transition shadow-sm">
+                РЛ №1 (940×720)
+            </button>
+            <button onclick="loadPreset('rl2')" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 border border-slate-300 rounded transition shadow-sm">
+                РЛ №2 (770×650)
+            </button>
+        </div>
 
-            <button onclick="exportJSON()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1 text-slate-300">
-                <span>Экспорт JSON</span>
-            </button>
-            <label class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition cursor-pointer text-slate-300">
-                <span>Импорт</span>
-                <input type="file" id="jsonInput" onchange="importJSON(event)" class="hidden" accept=".json">
-            </label>
+        <!-- LIVE GEOMETRIC BALANCE BADGES -->
+        <div class="flex items-center gap-2 font-mono text-xs">
+            <div id="balanceBadge" class="px-2.5 py-1 rounded border flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-300 font-medium">
+                <span id="balanceIcon">✓</span>
+                <span id="balanceText">Баланс B: ОК</span>
+            </div>
+            <div id="gussetBadge" class="px-2.5 py-1 rounded border flex items-center gap-1.5 bg-blue-50 text-blue-700 border-blue-200">
+                <span>Фальцы B2 &lt; B1</span>
+            </div>
         </div>
     </header>
 
-    <!-- MAIN MAIN WORKSPACE (2D LEFT / 3D RIGHT) -->
-    <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 max-w-[1920px] mx-auto w-full">
-        
-        <!-- LEFT COLUMN: 2D DRAFTING CANVAS & SYMMETRY CONTROL (5 Cols) -->
-        <div class="lg:col-span-5 flex flex-col space-y-4">
-            
-            <!-- 2D Canvas Card -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[480px]">
-                <div class="bg-slate-800/80 px-4 py-2 border-b border-slate-700/60 flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
-                        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-200">2D Чертеж развертки полотна B = <span id="lblBVal" class="text-indigo-400 font-mono">1220</span> мм</h2>
-                    </div>
-                    <div class="flex items-center space-x-2 text-[11px] text-slate-400">
-                        <label class="flex items-center space-x-1 cursor-pointer">
-                            <input type="checkbox" id="chkShowDims" checked onchange="draw2D()" class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0">
-                            <span>Размеры</span>
-                        </label>
-                        <label class="flex items-center space-x-1 cursor-pointer">
-                            <input type="checkbox" id="chkShowGrid" checked onchange="draw2D()" class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0">
-                            <span>Сетка</span>
-                        </label>
-                    </div>
-                </div>
+    <!-- MAIN WORKSPACE (3 COLUMNS) -->
+    <main class="flex-1 flex overflow-hidden">
 
-                <div class="flex-1 relative bg-slate-950 bg-grid-pattern overflow-hidden">
-                    <canvas id="canvas2d" class="w-full h-full block cursor-crosshair"></canvas>
-                    <div id="canvasHoverInfo" class="absolute bottom-2 left-2 bg-slate-900/90 border border-slate-700/80 rounded px-2.5 py-1 text-[11px] font-mono text-slate-300 pointer-events-none hidden backdrop-blur">
-                        X: 0 | Y: 0
-                    </div>
-                </div>
+        <!-- LEFT PANEL: CONTROLS & TABS (~360px) -->
+        <aside class="w-[360px] bg-white border-r border-cad-border flex flex-col shrink-0 z-10 shadow-sm">
+            <!-- TAB HEADERS -->
+            <div class="flex border-b border-cad-border bg-slate-50">
+                <button onclick="switchTab('tab-geom')" id="btn-tab-geom" class="flex-1 py-2.5 text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-white">
+                    Геометрия
+                </button>
+                <button onclick="switchTab('tab-seams')" id="btn-tab-seams" class="flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border-b-2 border-transparent">
+                    Швы и обработка
+                </button>
+                <button onclick="switchTab('tab-roll')" id="btn-tab-roll" class="flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border-b-2 border-transparent">
+                    Намотка и РЛ
+                </button>
             </div>
 
-            <!-- SYMMETRY INSPECTOR PANEL -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl space-y-3">
-                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <div class="flex items-center space-x-2">
-                        <div id="symStatusDot" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-200">Контроль Симметрии (Ось B1)</h3>
-                    </div>
-                    <div class="flex items-center space-x-3">
-                        <label class="flex items-center space-x-1 text-xs cursor-pointer text-slate-300">
-                            <input type="checkbox" id="chkSymActive" checked onchange="onSymmetrySettingsChange()" class="rounded bg-slate-800 border-slate-700 text-indigo-500">
-                            <span>Вкл</span>
-                        </label>
-                        <div class="flex items-center space-x-1 text-xs text-slate-400">
-                            <span>Допуск:</span>
-                            <input type="number" id="numSymTol" value="1.5" step="0.5" min="0.1" max="10" onchange="onSymmetrySettingsChange()" class="w-12 bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-center text-indigo-300 font-mono">
-                            <span>мм</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Symmetry Evaluation Table -->
-                <div id="symResultsContainer" class="space-y-1.5 max-h-36 overflow-y-auto text-xs pr-1">
-                    <!-- Dynamic Rows populated by JS -->
-                </div>
-            </div>
-
-        </div>
-
-        <!-- RIGHT COLUMN: 3D SIMULATOR & PARAMETER ACCORDION (7 Cols) -->
-        <div class="lg:col-span-7 flex flex-col space-y-4">
-            
-            <!-- 3D Simulator Window -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[480px] relative">
-                
-                <!-- 3D Header Controls -->
-                <div class="bg-slate-800/80 px-4 py-2 border-b border-slate-700/60 flex flex-wrap items-center justify-between gap-2 z-10 backdrop-blur">
-                    <div class="flex items-center space-x-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-200">3D Кинематика Сворачивания (POLYTEX)</h2>
-                    </div>
-
-                    <!-- View Presets -->
-                    <div class="flex items-center space-x-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
-                        <button onclick="setCameraView('iso')" class="px-2 py-0.5 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-200">Изометрия</button>
-                        <button onclick="setCameraView('front')" class="px-2 py-0.5 text-[11px] rounded hover:bg-slate-800 text-slate-300">Лицо B1</button>
-                        <button onclick="setCameraView('back')" class="px-2 py-0.5 text-[11px] rounded hover:bg-slate-800 text-slate-300">Шов S1</button>
-                        <button onclick="setCameraView('top')" class="px-2 py-0.5 text-[11px] rounded hover:bg-slate-800 text-slate-300">Торец M-фальц</button>
-                    </div>
-                </div>
-
-                <!-- 3D Canvas viewport -->
-                <div id="threeContainer" class="canvas-container flex-1 bg-slate-950"></div>
-
-                <!-- 3D Interactive Floating Overlay Controls -->
-                <div class="absolute bottom-3 left-3 right-3 bg-slate-900/90 border border-slate-700/80 rounded-xl p-3 backdrop-blur z-10 flex flex-wrap items-center justify-between gap-3 shadow-2xl">
-                    
-                    <!-- Folding Slider -->
-                    <div class="flex-1 min-w-[200px] flex items-center space-x-3">
-                        <button id="btnPlayFold" onclick="togglePlayFold()" class="w-8 h-8 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center font-bold text-sm shadow">
-                            ▶
-                        </button>
-                        <div class="flex-1 flex flex-col">
-                            <div class="flex justify-between text-[11px] font-medium text-slate-300 mb-1">
-                                <span>Плоский лист (0%)</span>
-                                <span class="text-indigo-400 font-mono font-bold" id="lblFoldPercent">100% Рукав</span>
-                            </div>
-                            <input type="range" id="rngFold" min="0" max="100" value="100" oninput="onFoldProgressInput(this.value)" class="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
-                        </div>
-                    </div>
-
-                    <!-- Mode Toggles -->
-                    <div class="flex items-center space-x-4 border-l border-slate-800 pl-3">
-                        <!-- Volume vs Flat Sleeve -->
-                        <div class="flex items-center space-x-2">
-                            <span class="text-xs text-slate-400">Форма:</span>
-                            <button id="btnVolumetric" onclick="toggleVolumeMode()" class="px-2.5 py-1 text-xs rounded-md bg-indigo-600 text-white font-medium shadow">
-                                Объемный 3D
-                            </button>
-                        </div>
-
-                        <!-- X-Ray Translucent Layer toggle -->
-                        <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
-                            <input type="checkbox" id="chkXRay" onchange="toggleXRay(this.checked)" class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0">
-                            <span>Рентген шва/фальца</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TECH CARD PARAMETER TABS / INPUTS -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col">
-                <!-- Tab Headers -->
-                <div class="flex border-b border-slate-800 space-x-4 mb-4 text-xs font-semibold">
-                    <button onclick="switchTab('tabGeom')" id="btnTabGeom" class="pb-2 border-b-2 border-indigo-500 text-indigo-400">1. Геометрия полотна B</button>
-                    <button onclick="switchTab('tabSeams')" id="btnTabSeams" class="pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200">2. Швы S1-S3 & Разрезы</button>
-                    <button onclick="switchTab('tabEmbPerf')" id="btnTabEmbPerf" class="pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200">3. Тиснение & Перфорация</button>
-                    <button onclick="switchTab('tabPrint')" id="btnTabPrint" class="pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200">4. Печать & Рулон R5</button>
-                </div>
+            <!-- TAB CONTENT CONTAINER -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
 
                 <!-- TAB 1: GEOMETRY -->
-                <div id="tabGeom" class="tab-content space-y-4">
-                    <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs">
-                        <label class="flex items-center space-x-2 font-medium text-slate-300 cursor-pointer">
-                            <input type="checkbox" id="chkAutoB" checked onchange="toggleAutoB()" class="rounded bg-slate-800 text-indigo-500">
-                            <span>Авто-баланс B = T1 + B3 + 2×B2 + B1 + B4 + T2</span>
-                        </label>
-                        <span id="lblFormularB" class="font-mono text-slate-400">1220 = 8 + 195 + 400 + 390 + 195 + 32</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        <div>
-                            <label class="block text-slate-400 mb-1">Высота A (шаг), мм</label>
-                            <input type="number" id="paramA" value="780" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
+                <div id="tab-geom" class="space-y-4">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1 flex justify-between items-center">
+                            <span>Габариты полотна и рукава</span>
+                            <span class="text-[10px] text-slate-400 uppercase font-mono">Развертка (мм)</span>
                         </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Ширина B, мм</label>
-                            <input type="number" id="paramB" value="1220" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Ширина рукава B1, мм</label>
-                            <input type="number" id="paramB1" value="390" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Фальцовка B2, мм</label>
-                            <input type="number" id="paramB2" value="200" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-
-                        <div>
-                            <label class="block text-slate-400 mb-1">Внеш. клапан B3, мм</label>
-                            <input type="number" id="paramB3" value="195" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Внут. клапан B4, мм</label>
-                            <input type="number" id="paramB4" value="195" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Кромка T1 (внеш), мм</label>
-                            <input type="number" id="paramT1" value="8" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Кромка T2 (внут), мм</label>
-                            <input type="number" id="paramT2" value="32" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-mono">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 2: SEAMS & CUTS -->
-                <div id="tabSeams" class="tab-content hidden space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                            <h4 class="font-bold text-slate-300">Продольный шов S1</h4>
+                        <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-slate-400 mb-0.5">Ширина S1, мм</label>
-                                <input type="number" id="paramS1W" value="15" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">A (Шаг печати / высота):</label>
+                                <input type="number" id="inp-A" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400 mb-0.5">Отступ от T1, мм</label>
-                                <input type="number" id="paramS1Off" value="5" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="text-slate-600">B (Ширина полотна):</label>
+                                    <label class="text-[10px] text-blue-600 flex items-center gap-1 cursor-pointer">
+                                        <input type="checkbox" id="inp-autoB" onchange="toggleAutoB()" class="rounded border-slate-300">
+                                        Авто
+                                    </label>
+                                </div>
+                                <input type="number" id="inp-B" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                         </div>
 
-                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                            <h4 class="font-bold text-slate-300">Краевой шов S2</h4>
+                        <div class="grid grid-cols-2 gap-2 pt-1">
                             <div>
-                                <label class="block text-slate-400 mb-0.5">Ширина S2, мм</label>
-                                <input type="number" id="paramS2W" value="10" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">B1 (Рукав в сложении):</label>
+                                <input type="number" id="inp-B1" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400 mb-0.5">Отступ, мм</label>
-                                <input type="number" id="paramS2Off" value="2" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">B2 (Фальцовка):</label>
+                                <input type="number" id="inp-B2" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                         </div>
 
-                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                            <h4 class="font-bold text-slate-300">Доп. шов S3</h4>
+                        <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-slate-400 mb-0.5">Ширина S3, мм</label>
-                                <input type="number" id="paramS3W" value="8" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">Допуск B2 (-мм):</label>
+                                <input type="number" id="inp-B2TolMinus" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400 mb-0.5">Отступ, мм</label>
-                                <input type="number" id="paramS3Off" value="2" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">Допуск B2 (+мм):</label>
+                                <input type="number" id="inp-B2TolPlus" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                         </div>
                     </div>
 
-                    <!-- Flap Cuts -->
-                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2 text-xs">
-                        <h4 class="font-bold text-slate-300">Вырезы/Разрезы в клапане (C1/D1, C2/D2)</h4>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1">Клапаны и сварные кромки</div>
+                        <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-slate-400">C1 (Ширина), мм</label>
-                                <input type="number" id="paramC1" value="25" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">B3 (Внешний клапан):</label>
+                                <input type="number" id="inp-B3" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400">D1 (Высота), мм</label>
-                                <input type="number" id="paramD1" value="15" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">B4 (Внутр. клапан):</label>
+                                <input type="number" id="inp-B4" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                                <label class="text-slate-600 block mb-1">T1 (Наружная кромка):</label>
+                                <input type="number" id="inp-T1" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400">C2 (Ширина), мм</label>
-                                <input type="number" id="paramC2" value="25" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400">D2 (Высота), мм</label>
-                                <input type="number" id="paramD2" value="15" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">T2 (Внутренняя кромка):</label>
+                                <input type="number" id="inp-T2" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono focus:border-blue-500 focus:outline-none" oninput="updateStateFromInputs()">
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- TAB 3: EMBOSSING & PERFORATION -->
-                <div id="tabEmbPerf" class="tab-content hidden space-y-4 text-xs">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        
-                        <!-- Embossing Bands -->
-                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                            <div class="flex items-center justify-between">
-                                <h4 class="font-bold text-slate-300">Тиснение (E1–E5, F, G)</h4>
-                                <span class="text-[10px] text-amber-400">Ромбовидная насечка</span>
+                <!-- TAB 2: SEAMS & PROCESSING -->
+                <div id="tab-seams" class="hidden space-y-4">
+                    
+                    <!-- SYMMETRY CHECK CARD -->
+                    <div class="bg-blue-50 border border-blue-200 p-3 rounded-lg space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-blue-900">Проверка симметрии</span>
+                            <span id="symBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">ОК</span>
+                        </div>
+                        <div id="symText" class="text-[11px] text-blue-800 space-y-0.5 font-mono">
+                            <div>Элементы E2/E3: симметрично</div>
+                            <div>Элементы P1/P2: симметрично</div>
+                        </div>
+                        <button onclick="autoFixSymmetry()" class="w-full mt-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-2 rounded text-xs transition shadow-sm">
+                            Выровнять симметрично
+                        </button>
+                    </div>
+
+                    <!-- SEAMS S1, S2, S3 -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1">Продольные швы (S1, S2, S3)</div>
+                        <div class="text-[11px] text-slate-500">Шов S1 всегда активен на линии перекрытия клапанов.</div>
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-S2" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                <span>Шов S2 (смещение):</span>
+                            </label>
+                            <input type="number" id="inp-S2Off" class="bg-white border border-slate-300 rounded px-2 py-0.5 font-mono" oninput="updateStateFromInputs()">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-S3" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                <span>Шов S3 (смещение):</span>
+                            </label>
+                            <input type="number" id="inp-S3Off" class="bg-white border border-slate-300 rounded px-2 py-0.5 font-mono" oninput="updateStateFromInputs()">
+                        </div>
+                    </div>
+
+                    <!-- WEB EMBOSSING -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-1">
+                            <label class="font-bold text-slate-800 flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-embossing" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                Тиснение по полотну
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-600 block mb-0.5">Ширина полосы (мм):</label>
+                                <input type="number" id="inp-embWidth" class="w-full bg-white border border-slate-300 rounded px-2 py-0.5 font-mono" oninput="updateStateFromInputs()">
                             </div>
-                            
-                            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">E1 (Клапан B3):</span>
-                                    <input type="number" id="embE1_X" value="30" placeholder="X мм" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                    <input type="number" id="embE1_W" value="50" placeholder="W мм" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                </div>
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">E2 (Фальц B2-L):</span>
-                                    <input type="number" id="embE2_X" value="230" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                    <input type="number" id="embE2_W" value="60" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                </div>
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">E3 (Лицо B1):</span>
-                                    <input type="number" id="embE3_X" value="555" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                    <input type="number" id="embE3_W" value="110" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                </div>
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">E4 (Фальц B2-R):</span>
-                                    <input type="number" id="embE4_X" value="930" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                    <input type="number" id="embE4_W" value="60" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                </div>
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">E5 (Клапан B4):</span>
-                                    <input type="number" id="embE5_X" value="1130" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                    <input type="number" id="embE5_W" value="50" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 font-mono">
-                                </div>
+                            <div>
+                                <label class="text-slate-600 block mb-0.5">Привязка:</label>
+                                <select id="inp-embAnchor" class="w-full bg-white border border-slate-300 rounded px-1 py-1 text-xs" onchange="updateStateFromInputs()">
+                                    <option value="left">Левый край</option>
+                                    <option value="center">Центр полосы</option>
+                                </select>
                             </div>
                         </div>
+                        <div class="grid grid-cols-5 gap-1 pt-1">
+                            <div><span class="text-[10px] text-slate-500">E1:</span><input type="number" id="inp-E1" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">E2:</span><input type="number" id="inp-E2" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">E3:</span><input type="number" id="inp-E3" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">E4:</span><input type="number" id="inp-E4" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">E5:</span><input type="number" id="inp-E5" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                        </div>
+                    </div>
 
-                        <!-- Needle Perforation -->
-                        <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                            <div class="flex items-center justify-between">
-                                <h4 class="font-bold text-slate-300">Игольчатая перфорация (P1, P2)</h4>
-                                <span class="text-[10px] text-sky-400">Выход воздуха</span>
-                            </div>
+                    <!-- NEEDLE PERFORATION -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-1">
+                            <label class="font-bold text-slate-800 flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-perf" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                Перфорация иглами
+                            </label>
+                        </div>
+                        <div>
+                            <label class="text-slate-600 block mb-0.5">Ширина дорожки (мм):</label>
+                            <input type="number" id="inp-perfWidth" class="w-full bg-white border border-slate-300 rounded px-2 py-0.5 font-mono" oninput="updateStateFromInputs()">
+                        </div>
+                        <div class="grid grid-cols-4 gap-1">
+                            <div><span class="text-[10px] text-slate-500">P1:</span><input type="number" id="inp-P1" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">P2:</span><input type="number" id="inp-P2" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">P3:</span><input type="number" id="inp-P3" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            <div><span class="text-[10px] text-slate-500">P4:</span><input type="number" id="inp-P4" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                        </div>
+                    </div>
 
-                            <div class="space-y-2">
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">Полоса P1:</span>
-                                    <input type="number" id="perfP1_X" value="430" placeholder="X мм" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 font-mono">
-                                    <input type="number" id="perfP1_W" value="40" placeholder="W мм" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 font-mono">
-                                </div>
-                                <div class="grid grid-cols-3 gap-1.5 items-center">
-                                    <span class="text-slate-400">Полоса P2:</span>
-                                    <input type="number" id="perfP2_X" value="750" placeholder="X мм" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 font-mono">
-                                    <input type="number" id="perfP2_W" value="40" placeholder="W мм" onchange="updateAll()" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 font-mono">
-                                </div>
+                    <!-- EXTERNAL & INTERNAL CUTS -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1">Разрезы в клапанах</div>
+                        <!-- Ext Cuts -->
+                        <div class="space-y-1">
+                            <label class="font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-extCuts" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                Внешние разрезы (C1 / D1)
+                            </label>
+                            <div class="grid grid-cols-3 gap-1">
+                                <div><span class="text-[10px] text-slate-500">C1 (X):</span><input type="number" id="inp-C1" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">D1 (Y):</span><input type="number" id="inp-D1" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Сетка:</span><input type="text" id="inp-extCutsPattern" value="3x6" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
                             </div>
                         </div>
+                        <!-- Int Cuts -->
+                        <div class="space-y-1 pt-2 border-t border-slate-200">
+                            <label class="font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-intCuts" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                Внутренние разрезы (C2 / D2)
+                            </label>
+                            <div class="grid grid-cols-3 gap-1">
+                                <div><span class="text-[10px] text-slate-500">C2 (X):</span><input type="number" id="inp-C2" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">D2 (Y):</span><input type="number" id="inp-D2" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Сетка:</span><input type="text" id="inp-intCutsPattern" value="3x6" class="w-full bg-white border rounded p-1 font-mono text-center" oninput="updateStateFromInputs()"></div>
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- FLAP EMBOSSING & PHOTO MARK -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1">Тиснение клапана и Фотометка</div>
+                        <!-- Flap Emb -->
+                        <div class="space-y-1">
+                            <label class="font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-flapEmb" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                Тиснение клапана (F / G)
+                            </label>
+                            <div class="grid grid-cols-4 gap-1">
+                                <div><span class="text-[10px] text-slate-500">F (X):</span><input type="number" id="inp-F" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">G (Y):</span><input type="number" id="inp-G" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Ширина:</span><input type="number" id="inp-flapEmbW" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Высота:</span><input type="number" id="inp-flapEmbH" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                            </div>
+                        </div>
+                        <!-- Photomark -->
+                        <div class="space-y-1 pt-2 border-t border-slate-200">
+                            <label class="font-semibold text-slate-700 flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="inp-photomark" onchange="updateStateFromInputs()" class="rounded border-slate-300">
+                                Фотометка
+                            </label>
+                            <div class="grid grid-cols-4 gap-1">
+                                <div><span class="text-[10px] text-slate-500">X (мм):</span><input type="number" id="inp-pmX" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Y (мм):</span><input type="number" id="inp-pmY" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Ширина:</span><input type="number" id="inp-pmW" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                                <div><span class="text-[10px] text-slate-500">Высота:</span><input type="number" id="inp-pmH" class="w-full bg-white border rounded p-1 font-mono" oninput="updateStateFromInputs()"></div>
+                            </div>
+                            <div class="flex items-center gap-2 pt-1">
+                                <span class="text-slate-600">Цвет метки:</span>
+                                <input type="color" id="inp-pmColor" value="#111827" onchange="updateStateFromInputs()" class="w-8 h-6 rounded border cursor-pointer">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- TAB 4: PRINT & ROLL SPECS -->
-                <div id="tabPrint" class="tab-content hidden space-y-4 text-xs">
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                            <label class="block text-slate-400 mb-1">Схема намотки</label>
-                            <select id="paramSchemeR" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-indigo-300">
-                                <option value="R5">R5 (Намотка наружу)</option>
-                                <option value="R1">R1 (Намотка внутрь)</option>
-                            </select>
+                <!-- TAB 3: WINDING & TECH REGULAMENT (РЛ) -->
+                <div id="tab-roll" class="hidden space-y-4">
+                    <!-- Scheme & Winding -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1 flex justify-between items-center">
+                            <span>Схема печати и Намотка FFS</span>
+                            <!-- MINI SVG SCHEMATIC ICON -->
+                            <div id="windingSvgIcon" class="w-8 h-8 bg-white border rounded p-0.5 flex items-center justify-center"></div>
                         </div>
-                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                            <label class="block text-slate-400 mb-1">Схема печатных меток</label>
-                            <select id="paramSchemeA" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-indigo-300">
-                                <option value="A1">A1 (По фотометке)</option>
-                                <option value="A2">A2 (Непрерывный рис)</option>
-                            </select>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-600 block mb-1">Схема печати:</label>
+                                <select id="inp-scheme" class="w-full bg-white border border-slate-300 rounded px-2 py-1" onchange="updateStateFromInputs()">
+                                    <option value="A1">A1 (Прямая)</option>
+                                    <option value="A2">A2 (Перевернутая 180°)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-slate-600 block mb-1">Схема намотки FFS:</label>
+                                <select id="inp-winding" class="w-full bg-white border border-slate-300 rounded px-2 py-1" onchange="updateStateFromInputs()">
+                                    <option value="R1">FFS R1 (Шов внутри)</option>
+                                    <option value="R2">FFS R2 (Шов внутри перев.)</option>
+                                    <option value="R5">FFS R5 (Шов снаружи)</option>
+                                    <option value="R3">FFS R3</option>
+                                    <option value="R7">FFS R7</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                            <label class="block text-slate-400 mb-1">Диаметр шпули, мм</label>
-                            <select id="paramCore" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
-                                <option value="152">152 мм (6")</option>
-                                <option value="76">76 мм (3")</option>
-                            </select>
-                        </div>
-                        <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                            <label class="block text-slate-400 mb-1">Макс. D рулона, мм</label>
-                            <input type="number" id="paramMaxRollD" value="1000" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-600 block mb-1">Вид намотки:</label>
+                                <select id="inp-windingType" class="w-full bg-white border border-slate-300 rounded px-2 py-1" onchange="updateStateFromInputs()">
+                                    <option value="ровная">Ровная</option>
+                                    <option value="осциллированная">Осциллированная</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-slate-600 block mb-1">Кол-во красок:</label>
+                                <input type="number" id="inp-colors" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Photomark Settings -->
-                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <h4 class="font-bold text-slate-300">Параметры фотометки</h4>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <!-- Roll & Core -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1">Параметры рулона и шпули</div>
+                        <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-slate-400">Позиция X, мм</label>
-                                <input type="number" id="photoX" value="15" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">Масса рулона (кг):</label>
+                                <input type="number" id="inp-rollWeight" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400">Позиция Y, мм</label>
-                                <input type="number" id="photoY" value="10" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">Длина в рулоне (м):</label>
+                                <input type="number" id="inp-rollLength" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-600 block mb-1">Диаметр мин (мм):</label>
+                                <input type="number" id="inp-rollDiamMin" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
                             </div>
                             <div>
-                                <label class="block text-slate-400">Ширина, мм</label>
-                                <input type="number" id="photoW" value="20" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">Диаметр макс (мм):</label>
+                                <input type="number" id="inp-rollDiamMax" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-600 block mb-1">Шпуля (ID мм):</label>
+                                <select id="inp-coreId" class="w-full bg-white border rounded px-2 py-1 font-mono" onchange="updateStateFromInputs()">
+                                    <option value="152">152 мм (6")</option>
+                                    <option value="76">76 мм (3")</option>
+                                </select>
                             </div>
                             <div>
-                                <label class="block text-slate-400">Высота, мм</label>
-                                <input type="number" id="photoH" value="10" onchange="updateAll()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono">
+                                <label class="text-slate-600 block mb-1">Шпулей на ось:</label>
+                                <input type="number" id="inp-coreCount" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Splices & Logistics -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-3">
+                        <div class="font-bold text-slate-800 border-b border-slate-200 pb-1">Склейки и Логистика</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-600 block mb-1">Макс. склеек:</label>
+                                <input type="number" id="inp-maxSplices" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
+                            </div>
+                            <div>
+                                <label class="text-slate-600 block mb-1">Мин. от шпули (мм):</label>
+                                <input type="number" id="inp-spliceMinFromCore" class="w-full bg-white border rounded px-2 py-1 font-mono" oninput="updateStateFromInputs()">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-slate-600 block mb-1">Доп. примечания к РЛ:</label>
+                            <textarea id="inp-notes" rows="3" class="w-full bg-white border rounded p-2 text-xs font-sans focus:outline-none focus:border-blue-500" oninput="updateStateFromInputs()"></textarea>
                         </div>
                     </div>
                 </div>
 
             </div>
-        </div>
+        </aside>
 
-    </div>
+        <!-- CENTER PANEL: 2D INTERACTIVE ENGINEERING BLUEPRINT CANVAS -->
+        <section class="flex-1 bg-slate-200 flex flex-col relative overflow-hidden border-r border-cad-border">
+            <!-- CANVAS TOOLBAR -->
+            <div class="h-9 bg-white border-b border-cad-border px-3 flex items-center justify-between text-xs text-slate-600 z-10 shrink-0 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <span class="font-bold text-slate-800 flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        2D Чертеж развертки (ТК / РЛ)
+                    </span>
+                    <span class="text-slate-400">|</span>
+                    <span class="text-slate-500">Клик по размеру = быстрый ввод • Перетаскивание линий/элементов мышью</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="reset2DView()" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 border text-slate-700 text-xs font-medium">
+                        Сброс вида
+                    </button>
+                </div>
+            </div>
 
-    <!-- JAVASCRIPT LOGIC & KINEMATICS ENGINE -->
+            <!-- CANVAS CONTAINER -->
+            <div class="flex-1 canvas-container bg-white cursor-crosshair" id="blueprintContainer">
+                <canvas id="blueprintCanvas" class="w-full h-full block"></canvas>
+                
+                <!-- FLOATING INLINE EDIT INPUT FOR DIMENSION LABELS -->
+                <input type="number" id="inlineEditInput" class="hidden absolute z-30 font-mono text-xs px-1.5 py-0.5 bg-blue-50 border-2 border-blue-600 rounded text-blue-900 font-bold shadow-lg focus:outline-none" style="transform: translate(-50%, -50%);">
+            </div>
+
+            <!-- DRAG TOOLTIP -->
+            <div id="dragTooltip" class="hidden absolute z-30 pointer-events-none bg-slate-900/90 text-white font-mono text-[11px] px-2 py-1 rounded shadow-md"></div>
+        </section>
+
+        <!-- RIGHT PANEL: 3D REALISTIC FFS BAG SIMULATOR -->
+        <section class="w-[440px] bg-slate-900 flex flex-col relative shrink-0 overflow-hidden">
+            <!-- 3D TOOLBAR -->
+            <div class="h-9 bg-slate-800 border-b border-slate-700 px-3 flex items-center justify-between text-xs text-slate-300 z-10 shrink-0">
+                <span class="font-bold text-white flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-8-4-8 4m16 0l-8 4m8-0v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                    3D Кинематический рукав FFS
+                </span>
+                <div class="flex items-center gap-2">
+                    <label class="flex items-center gap-1 cursor-pointer text-slate-300 hover:text-white">
+                        <input type="checkbox" id="inp-xray" onchange="toggleXRay()" class="rounded bg-slate-700 border-slate-600">
+                        <span>Рентген</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- THREE.JS CONTAINER -->
+            <div id="threeContainer" class="flex-1 relative w-full h-full bg-slate-950">
+                <!-- VIEWPORT OVERLAY CONTROLS -->
+                <div class="absolute top-3 right-3 flex flex-col gap-1 z-10">
+                    <button onclick="setCameraView('iso')" class="px-2 py-1 text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 backdrop-blur">Изометрия</button>
+                    <button onclick="setCameraView('front')" class="px-2 py-1 text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 backdrop-blur">Лицо</button>
+                    <button onclick="setCameraView('back')" class="px-2 py-1 text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 backdrop-blur">Шов (тыл)</button>
+                    <button onclick="setCameraView('top')" class="px-2 py-1 text-[11px] bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded border border-slate-700 backdrop-blur">Торец сверху</button>
+                </div>
+
+                <!-- LIVE 2D CROSS-SECTION INSET CANVAS -->
+                <div class="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-700 rounded p-2 backdrop-blur z-10 w-[200px] shadow-lg">
+                    <div class="text-[10px] font-bold text-slate-400 mb-1 flex justify-between">
+                        <span>Сечение рукава (X-Z)</span>
+                        <span id="csFoldText" class="font-mono text-blue-400">0%</span>
+                    </div>
+                    <canvas id="crossSectionCanvas" width="180" height="90" class="w-full h-[90px] block bg-slate-950 rounded border border-slate-800"></canvas>
+                </div>
+            </div>
+
+            <!-- FOLDING KINEMATICS CONTROL BAR -->
+            <div class="bg-slate-800 border-t border-slate-700 p-3 space-y-2 z-10 shrink-0">
+                <div class="flex items-center justify-between text-xs text-slate-300">
+                    <span class="font-semibold text-slate-200">Сворачивание рукава FFS:</span>
+                    <span id="foldPercentLabel" class="font-mono text-blue-400 font-bold text-sm">0%</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="playPauseBtn" onclick="togglePlayFold()" class="w-8 h-8 rounded bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shrink-0 shadow font-bold">
+                        ▶
+                    </button>
+                    <input type="range" id="foldSlider" min="0" max="1" step="0.005" value="0" oninput="onFoldSliderInput(this.value)" class="w-full accent-blue-500 cursor-pointer">
+                </div>
+                <div class="grid grid-cols-3 gap-1 pt-1">
+                    <button onclick="setFoldProgress(0)" class="py-1 text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-medium">0% Полотно</button>
+                    <button onclick="setFoldProgress(0.5)" class="py-1 text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-medium">50% 3D Рукав</button>
+                    <button onclick="setFoldProgress(1.0)" class="py-1 text-[11px] bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-medium">100% Сложенный FFS</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- APPLICATION LOGIC & JS ENGINE -->
     <script>
-        // Global Application State (ТК 03343 Defaults)
+        // ============================================================================
+        // 1. STATE & DATA MODEL
+        // ============================================================================
         let state = {
             A: 780,
             B: 1220,
+            autoB: true,
             B1: 390,
             B2: 200,
+            B2TolMinus: -6,
+            B2TolPlus: 6,
             B3: 195,
             B4: 195,
             T1: 8,
             T2: 32,
-            autoB: true,
+            
             // Seams
-            S1_W: 15, S1_Off: 5,
-            S2_W: 10, S2_Off: 2,
-            S3_W: 8,  S3_Off: 2,
-            // Flap cuts
-            C1: 25, D1: 15, C2: 25, D2: 15,
-            // Embossing (X_start, Width)
-            emb: {
-                E1: { x: 30,  w: 50 },
-                E2: { x: 230, w: 60 },
-                E3: { x: 555, w: 110 },
-                E4: { x: 930, w: 60 },
-                E5: { x: 1130, w: 50 }
-            },
-            // Perforation (X_start, Width)
-            perf: {
-                P1: { x: 430, w: 40 },
-                P2: { x: 750, w: 40 }
-            },
-            // Photomark
-            photo: { x: 15, y: 10, w: 20, h: 10 },
-            // Roll / Print Specs
-            schemeR: 'R5', schemeA: 'A1', core: 152, maxRollD: 1000,
-            // 3D Kinematics State
-            foldPercent: 100,
-            volumetric: true,
-            xray: false,
-            // Symmetry Check Settings
-            symActive: true,
-            symTol: 1.5
+            S2: false, S2Off: 15,
+            S3: false, S3Off: 30,
+
+            // Web Embossing
+            embossing: true,
+            embWidth: 96,
+            embAnchor: "left",
+            E1: 30, E2: 405, E3: 695, E4: 1070, E5: "",
+
+            // Needle Perforation
+            perf: false,
+            perfWidth: 24,
+            P1: 260, P2: 960, P3: "", P4: "",
+
+            // Cuts
+            extCuts: false, extCutsPattern: "3x6", C1: 45, D1: 120,
+            intCuts: false, intCutsPattern: "3x6", C2: 1140, D2: 450,
+
+            // Flap Embossing & Photomark
+            flapEmb: false, F: 1160, G: 260, flapEmbW: 40, flapEmbH: 140,
+            photomark: false, pmW: 50, pmH: 15, pmColor: "#111827", pmX: 60, pmY: 40,
+
+            // Winding & Tech Regulament (РЛ)
+            scheme: "A1",
+            winding: "R5",
+            windingType: "ровная",
+            colors: 4,
+            microdots: "За пределами ГП",
+            rollWeight: 180,
+            rollLength: 1200,
+            rollDiamMin: 950,
+            rollDiamMax: 1000,
+            thickness: "",
+            coreType: "Картонная",
+            coreId: 152,
+            coreCount: 4,
+            coreProtrusion: "",
+            spliceType: "с совмещением, флажок",
+            spliceColor: "Коричневый",
+            maxSplices: 2,
+            spliceMinFromCore: 150,
+            packaging: "Без упаковки",
+            rollsPerRow: "2 рулона без смещения",
+            palletOrient: "Поперек паллеты горизонт.",
+            notes: ""
         };
 
-        // UI Tab Management
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(tabId).classList.remove('hidden');
-            
-            const btnMap = {
-                'tabGeom': 'btnTabGeom', 'tabSeams': 'btnTabSeams',
-                'tabEmbPerf': 'btnTabEmbPerf', 'tabPrint': 'btnTabPrint'
-            };
-            Object.keys(btnMap).forEach(id => {
-                const btn = document.getElementById(btnMap[id]);
-                if (id === tabId) {
-                    btn.className = 'pb-2 border-b-2 border-indigo-500 text-indigo-400 font-semibold';
+        const PRESETS = {
+            tk03343: {
+                A: 780, B: 1220, autoB: true, B1: 390, B2: 200, B2TolMinus: -6, B2TolPlus: 6, B3: 195, B4: 195, T1: 8, T2: 32,
+                S2: false, S2Off: 15, S3: false, S3Off: 30,
+                embossing: true, embWidth: 96, embAnchor: "left", E1: 30, E2: 405, E3: 695, E4: 1070, E5: "",
+                perf: false, perfWidth: 24, P1: 260, P2: 960, P3: "", P4: "",
+                extCuts: false, extCutsPattern: "3x6", C1: 45, D1: 120, intCuts: false, intCutsPattern: "3x6", C2: 1140, D2: 450,
+                flapEmb: false, F: 1160, G: 260, flapEmbW: 40, flapEmbH: 140,
+                photomark: false, pmW: 50, pmH: 15, pmColor: "#111827", pmX: 60, pmY: 40,
+                scheme: "A1", winding: "R5", windingType: "ровная", colors: 4, microdots: "За пределами ГП",
+                rollWeight: 180, rollLength: 1200, rollDiamMin: 950, rollDiamMax: 1000, coreId: 152, coreCount: 4,
+                maxSplices: 2, spliceMinFromCore: 150, notes: ""
+            },
+            rl1: {
+                A: 720, B: 940, autoB: true, B1: 350, B2: 100, B2TolMinus: -6, B2TolPlus: 6, B3: 175, B4: 175, T1: 8, T2: 32,
+                S2: false, S2Off: 15, S3: false, S3Off: 30,
+                embossing: false, embWidth: 80, embAnchor: "left", E1: "", E2: "", E3: "", E4: "", E5: "",
+                perf: false, perfWidth: 24, P1: "", P2: "", P3: "", P4: "",
+                extCuts: false, intCuts: false, flapEmb: false,
+                photomark: true, pmW: 50, pmH: 15, pmColor: "#111827", pmX: 20, pmY: 30,
+                scheme: "A1", winding: "R1", windingType: "осциллированная", colors: 4,
+                rollWeight: 173, rollLength: 1244.154, rollDiamMin: 990, rollDiamMax: 1000, coreId: 152, coreCount: 6,
+                maxSplices: 2, spliceMinFromCore: 150, notes: ""
+            },
+            rl2: {
+                A: 650, B: 770, autoB: true, B1: 245, B2: 85, B2TolMinus: -6, B2TolPlus: 6, B3: 183, B4: 132, T1: 8, T2: 32,
+                S2: false, S2Off: 35, S3: true, S3Off: 70,
+                embossing: true, embWidth: 76, embAnchor: "left", E1: 30, E2: 298, E3: 423, E4: 673, E5: "",
+                perf: false, perfWidth: 24, P1: "", P2: "", P3: "", P4: "",
+                extCuts: false, intCuts: true, intCutsPattern: "3x6", C2: 693, D2: 252, flapEmb: false,
+                photomark: true, pmW: 20, pmH: 40, pmColor: "#111827", pmX: 20, pmY: 30,
+                scheme: "A2", winding: "R2", windingType: "осциллированная", colors: 4,
+                rollWeight: 202, rollLength: 1967.894, rollDiamMin: 900, rollDiamMax: 1200, coreId: 152, coreCount: 3,
+                maxSplices: 1, spliceMinFromCore: 150,
+                notes: "Допустимы ролики диаметром от 900 до 1200 мм. Не допускаются склейки на расстоянии менее 150 мм от шпули"
+            }
+        };
+
+        // Calculations & Validation
+        function getCalculatedB() {
+            return state.T1 + state.B3 + (2 * state.B2) + state.B1 + state.B4 + state.T2;
+        }
+
+        function updateStateFromInputs() {
+            state.A = parseFloat(document.getElementById('inp-A').value) || 0;
+            state.B1 = parseFloat(document.getElementById('inp-B1').value) || 0;
+            state.B2 = parseFloat(document.getElementById('inp-B2').value) || 0;
+            state.B2TolMinus = parseFloat(document.getElementById('inp-B2TolMinus').value) || 0;
+            state.B2TolPlus = parseFloat(document.getElementById('inp-B2TolPlus').value) || 0;
+            state.B3 = parseFloat(document.getElementById('inp-B3').value) || 0;
+            state.B4 = parseFloat(document.getElementById('inp-B4').value) || 0;
+            state.T1 = parseFloat(document.getElementById('inp-T1').value) || 0;
+            state.T2 = parseFloat(document.getElementById('inp-T2').value) || 0;
+
+            state.autoB = document.getElementById('inp-autoB').checked;
+            if (state.autoB) {
+                state.B = getCalculatedB();
+                document.getElementById('inp-B').value = state.B;
+                document.getElementById('inp-B').disabled = true;
+            } else {
+                state.B = parseFloat(document.getElementById('inp-B').value) || 0;
+                document.getElementById('inp-B').disabled = false;
+            }
+
+            // Seams
+            state.S2 = document.getElementById('inp-S2').checked;
+            state.S2Off = parseFloat(document.getElementById('inp-S2Off').value) || 0;
+            state.S3 = document.getElementById('inp-S3').checked;
+            state.S3Off = parseFloat(document.getElementById('inp-S3Off').value) || 0;
+
+            // Embossing
+            state.embossing = document.getElementById('inp-embossing').checked;
+            state.embWidth = parseFloat(document.getElementById('inp-embWidth').value) || 0;
+            state.embAnchor = document.getElementById('inp-embAnchor').value;
+            state.E1 = parseNumOrEmpty(document.getElementById('inp-E1').value);
+            state.E2 = parseNumOrEmpty(document.getElementById('inp-E2').value);
+            state.E3 = parseNumOrEmpty(document.getElementById('inp-E3').value);
+            state.E4 = parseNumOrEmpty(document.getElementById('inp-E4').value);
+            state.E5 = parseNumOrEmpty(document.getElementById('inp-E5').value);
+
+            // Perf
+            state.perf = document.getElementById('inp-perf').checked;
+            state.perfWidth = parseFloat(document.getElementById('inp-perfWidth').value) || 0;
+            state.P1 = parseNumOrEmpty(document.getElementById('inp-P1').value);
+            state.P2 = parseNumOrEmpty(document.getElementById('inp-P2').value);
+            state.P3 = parseNumOrEmpty(document.getElementById('inp-P3').value);
+            state.P4 = parseNumOrEmpty(document.getElementById('inp-P4').value);
+
+            // Cuts
+            state.extCuts = document.getElementById('inp-extCuts').checked;
+            state.C1 = parseFloat(document.getElementById('inp-C1').value) || 0;
+            state.D1 = parseFloat(document.getElementById('inp-D1').value) || 0;
+            state.extCutsPattern = document.getElementById('inp-extCutsPattern').value;
+
+            state.intCuts = document.getElementById('inp-intCuts').checked;
+            state.C2 = parseFloat(document.getElementById('inp-C2').value) || 0;
+            state.D2 = parseFloat(document.getElementById('inp-D2').value) || 0;
+            state.intCutsPattern = document.getElementById('inp-intCutsPattern').value;
+
+            // Flap Emb & PM
+            state.flapEmb = document.getElementById('inp-flapEmb').checked;
+            state.F = parseFloat(document.getElementById('inp-F').value) || 0;
+            state.G = parseFloat(document.getElementById('inp-G').value) || 0;
+            state.flapEmbW = parseFloat(document.getElementById('inp-flapEmbW').value) || 0;
+            state.flapEmbH = parseFloat(document.getElementById('inp-flapEmbH').value) || 0;
+
+            state.photomark = document.getElementById('inp-photomark').checked;
+            state.pmX = parseFloat(document.getElementById('inp-pmX').value) || 0;
+            state.pmY = parseFloat(document.getElementById('inp-pmY').value) || 0;
+            state.pmW = parseFloat(document.getElementById('inp-pmW').value) || 0;
+            state.pmH = parseFloat(document.getElementById('inp-pmH').value) || 0;
+            state.pmColor = document.getElementById('inp-pmColor').value;
+
+            // Roll & Winding
+            state.scheme = document.getElementById('inp-scheme').value;
+            state.winding = document.getElementById('inp-winding').value;
+            state.windingType = document.getElementById('inp-windingType').value;
+            state.colors = parseInt(document.getElementById('inp-colors').value) || 0;
+            state.rollWeight = parseFloat(document.getElementById('inp-rollWeight').value) || 0;
+            state.rollLength = parseFloat(document.getElementById('inp-rollLength').value) || 0;
+            state.rollDiamMin = parseFloat(document.getElementById('inp-rollDiamMin').value) || 0;
+            state.rollDiamMax = parseFloat(document.getElementById('inp-rollDiamMax').value) || 0;
+            state.coreId = parseInt(document.getElementById('inp-coreId').value) || 152;
+            state.coreCount = parseInt(document.getElementById('inp-coreCount').value) || 0;
+            state.maxSplices = parseInt(document.getElementById('inp-maxSplices').value) || 0;
+            state.spliceMinFromCore = parseFloat(document.getElementById('inp-spliceMinFromCore').value) || 0;
+            state.notes = document.getElementById('inp-notes').value;
+
+            onStateUpdated();
+        }
+
+        function parseNumOrEmpty(val) {
+            if (val === "" || val === null || val === undefined) return "";
+            let n = parseFloat(val);
+            return isNaN(n) ? "" : n;
+        }
+
+        function syncInputsFromState() {
+            document.getElementById('inp-A').value = state.A;
+            document.getElementById('inp-B').value = state.B;
+            document.getElementById('inp-autoB').checked = state.autoB;
+            document.getElementById('inp-B').disabled = state.autoB;
+            document.getElementById('inp-B1').value = state.B1;
+            document.getElementById('inp-B2').value = state.B2;
+            document.getElementById('inp-B2TolMinus').value = state.B2TolMinus;
+            document.getElementById('inp-B2TolPlus').value = state.B2TolPlus;
+            document.getElementById('inp-B3').value = state.B3;
+            document.getElementById('inp-B4').value = state.B4;
+            document.getElementById('inp-T1').value = state.T1;
+            document.getElementById('inp-T2').value = state.T2;
+
+            document.getElementById('inp-S2').checked = state.S2;
+            document.getElementById('inp-S2Off').value = state.S2Off;
+            document.getElementById('inp-S3').checked = state.S3;
+            document.getElementById('inp-S3Off').value = state.S3Off;
+
+            document.getElementById('inp-embossing').checked = state.embossing;
+            document.getElementById('inp-embWidth').value = state.embWidth;
+            document.getElementById('inp-embAnchor').value = state.embAnchor;
+            document.getElementById('inp-E1').value = state.E1;
+            document.getElementById('inp-E2').value = state.E2;
+            document.getElementById('inp-E3').value = state.E3;
+            document.getElementById('inp-E4').value = state.E4;
+            document.getElementById('inp-E5').value = state.E5;
+
+            document.getElementById('inp-perf').checked = state.perf;
+            document.getElementById('inp-perfWidth').value = state.perfWidth;
+            document.getElementById('inp-P1').value = state.P1;
+            document.getElementById('inp-P2').value = state.P2;
+            document.getElementById('inp-P3').value = state.P3;
+            document.getElementById('inp-P4').value = state.P4;
+
+            document.getElementById('inp-extCuts').checked = state.extCuts;
+            document.getElementById('inp-C1').value = state.C1;
+            document.getElementById('inp-D1').value = state.D1;
+            document.getElementById('inp-extCutsPattern').value = state.extCutsPattern;
+
+            document.getElementById('inp-intCuts').checked = state.intCuts;
+            document.getElementById('inp-C2').value = state.C2;
+            document.getElementById('inp-D2').value = state.D2;
+            document.getElementById('inp-intCutsPattern').value = state.intCutsPattern;
+
+            document.getElementById('inp-flapEmb').checked = state.flapEmb;
+            document.getElementById('inp-F').value = state.F;
+            document.getElementById('inp-G').value = state.G;
+            document.getElementById('inp-flapEmbW').value = state.flapEmbW;
+            document.getElementById('inp-flapEmbH').value = state.flapEmbH;
+
+            document.getElementById('inp-photomark').checked = state.photomark;
+            document.getElementById('inp-pmX').value = state.pmX;
+            document.getElementById('inp-pmY').value = state.pmY;
+            document.getElementById('inp-pmW').value = state.pmW;
+            document.getElementById('inp-pmH').value = state.pmH;
+            document.getElementById('inp-pmColor').value = state.pmColor;
+
+            document.getElementById('inp-scheme').value = state.scheme;
+            document.getElementById('inp-winding').value = state.winding;
+            document.getElementById('inp-windingType').value = state.windingType;
+            document.getElementById('inp-colors').value = state.colors;
+            document.getElementById('inp-rollWeight').value = state.rollWeight;
+            document.getElementById('inp-rollLength').value = state.rollLength;
+            document.getElementById('inp-rollDiamMin').value = state.rollDiamMin;
+            document.getElementById('inp-rollDiamMax').value = state.rollDiamMax;
+            document.getElementById('inp-coreId').value = state.coreId;
+            document.getElementById('inp-coreCount').value = state.coreCount;
+            document.getElementById('inp-maxSplices').value = state.maxSplices;
+            document.getElementById('inp-spliceMinFromCore').value = state.spliceMinFromCore;
+            document.getElementById('inp-notes').value = state.notes;
+
+            onStateUpdated();
+        }
+
+        function loadPreset(key) {
+            if (!PRESETS[key]) return;
+            state = JSON.parse(JSON.stringify(PRESETS[key]));
+            syncInputsFromState();
+        }
+
+        function toggleAutoB() {
+            updateStateFromInputs();
+        }
+
+        function onStateUpdated() {
+            // Validate B
+            const calcB = getCalculatedB();
+            const delta = Math.abs(state.B - calcB);
+            const badge = document.getElementById('balanceBadge');
+            const icon = document.getElementById('balanceIcon');
+            const text = document.getElementById('balanceText');
+
+            if (delta <= 0.5) {
+                badge.className = "px-2.5 py-1 rounded border flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-300 font-medium";
+                icon.textContent = "✓";
+                text.textContent = `Баланс B: ОК (${state.B} мм)`;
+            } else {
+                badge.className = "px-2.5 py-1 rounded border flex items-center gap-1.5 bg-rose-50 text-rose-700 border-rose-300 font-medium";
+                icon.textContent = "⚠";
+                text.textContent = `Невязка: ±${delta.toFixed(1)} мм`;
+            }
+
+            // Gusset check B2 < B1
+            const gussetBadge = document.getElementById('gussetBadge');
+            if (state.B2 >= state.B1) {
+                gussetBadge.className = "px-2.5 py-1 rounded border flex items-center gap-1.5 bg-amber-50 text-amber-800 border-amber-300 font-medium";
+                gussetBadge.textContent = "⚠ B2 >= B1 (Глубокий фальц!)";
+            } else {
+                gussetBadge.className = "px-2.5 py-1 rounded border flex items-center gap-1.5 bg-blue-50 text-blue-700 border-blue-200 font-medium";
+                gussetBadge.textContent = "Фальцы B2 < B1 (ОК)";
+            }
+
+            // Check Symmetry
+            checkSymmetry();
+
+            // Update Winding SVG Icon
+            updateWindingSvgIcon();
+
+            // Redraw 2D Blueprint & 3D Texture/Mesh
+            render2DBlueprint();
+            update3DTextureAndMesh();
+            renderCrossSection();
+        }
+
+        function checkSymmetry() {
+            // B1 Center x = T1 + B3 + B2 + B1/2
+            const b1Center = state.T1 + state.B3 + state.B2 + (state.B1 / 2);
+            let ok = true;
+            let infoLines = [];
+
+            if (state.embossing && typeof state.E2 === 'number' && typeof state.E3 === 'number') {
+                const distE2 = b1Center - state.E2;
+                const distE3 = state.E3 - b1Center;
+                const dE = Math.abs(distE2 - distE3);
+                if (dE > 1) {
+                    ok = false;
+                    infoLines.push(`E2/E3 асимметрия: Δ=${dE.toFixed(1)}мм`);
                 } else {
-                    btn.className = 'pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-semibold';
-                }
-            });
-        }
-
-        // --- 2D CANVAS DRAWING ENGINE ---
-        const canvas2d = document.getElementById('canvas2d');
-        const ctx2d = canvas2d.getContext('2d');
-
-        function resize2DCanvas() {
-            const rect = canvas2d.parentElement.getBoundingClientRect();
-            canvas2d.width = rect.width;
-            canvas2d.height = rect.height;
-            draw2D();
-        }
-
-        function draw2D() {
-            if (!ctx2d) return;
-            const w = canvas2d.width;
-            const h = canvas2d.height;
-            ctx2d.clearRect(0, 0, w, h);
-
-            const showDims = document.getElementById('chkShowDims').checked;
-            const showGrid = document.getElementById('chkShowGrid').checked;
-
-            // Margins for technical dimensions
-            const padX = 50;
-            const padY = 50;
-            const drawW = w - padX * 2;
-            const drawH = h - padY * 2;
-
-            const scaleX = drawW / state.B;
-            const scaleY = drawH / state.A;
-            const scale = Math.min(scaleX, scaleY) * 0.9;
-
-            const offsetX = padX + (drawW - state.B * scale) / 2;
-            const offsetY = padY + (drawH - state.A * scale) / 2;
-
-            // Draw Background Grid
-            if (showGrid) {
-                ctx2d.strokeStyle = '#1e293b';
-                ctx2d.lineWidth = 1;
-                const step = 50 * scale;
-                for (let x = offsetX; x <= offsetX + state.B * scale; x += step) {
-                    ctx2d.beginPath(); ctx2d.moveTo(x, offsetY); ctx2d.lineTo(x, offsetY + state.A * scale); ctx2d.stroke();
-                }
-                for (let y = offsetY; y <= offsetY + state.A * scale; y += step) {
-                    ctx2d.beginPath(); ctx2d.moveTo(offsetX, y); ctx2d.lineTo(offsetX + state.B * scale, y); ctx2d.stroke();
+                    infoLines.push(`E2/E3 симметрично относительно B1`);
                 }
             }
 
-            // Outer Sheet Outline
-            ctx2d.fillStyle = 'rgba(30, 41, 59, 0.4)';
-            ctx2d.fillRect(offsetX, offsetY, state.B * scale, state.A * scale);
-            ctx2d.strokeStyle = '#64748b';
-            ctx2d.lineWidth = 2;
-            ctx2d.strokeRect(offsetX, offsetY, state.B * scale, state.A * scale);
+            if (state.perf && typeof state.P1 === 'number' && typeof state.P2 === 'number') {
+                const distP1 = b1Center - state.P1;
+                const distP2 = state.P2 - b1Center;
+                const dP = Math.abs(distP1 - distP2);
+                if (dP > 1) {
+                    ok = false;
+                    infoLines.push(`P1/P2 асимметрия: Δ=${dP.toFixed(1)}мм`);
+                } else {
+                    infoLines.push(`P1/P2 симметрично относительно B1`);
+                }
+            }
 
-            // Calculate Panels Boundaries (X coordinates)
-            const xT1 = state.T1;
-            const xB3 = xT1 + state.B3;
-            const xB2L = xB3 + state.B2;
-            const xB1 = xB2L + state.B1;
-            const xB2R = xB1 + state.B2;
-            const xB4 = xB2R + state.B4;
-            const xT2 = xB4 + state.T2; // should equal state.B
+            const badge = document.getElementById('symBadge');
+            const container = document.getElementById('symText');
 
-            const panels = [
-                { name: 'T1', xStart: 0, width: state.T1, color: 'rgba(239, 68, 68, 0.15)' },
-                { name: 'B3 (Клапан)', xStart: xT1, width: state.B3, color: 'rgba(99, 102, 241, 0.08)' },
-                { name: 'B2 (Фальц L)', xStart: xB3, width: state.B2, color: 'rgba(168, 85, 247, 0.12)' },
-                { name: 'B1 (ЛИЦО)', xStart: xB2L, width: state.B1, color: 'rgba(16, 185, 129, 0.12)' },
-                { name: 'B2 (Фальц R)', xStart: xB1, width: state.B2, color: 'rgba(168, 85, 247, 0.12)' },
-                { name: 'B4 (Клапан)', xStart: xB2R, width: state.B4, color: 'rgba(99, 102, 241, 0.08)' },
-                { name: 'T2', xStart: xB4, width: state.T2, color: 'rgba(239, 68, 68, 0.15)' }
-            ];
+            if (ok) {
+                badge.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800";
+                badge.textContent = "ОК";
+            } else {
+                badge.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800";
+                badge.textContent = "Отклонение";
+            }
 
-            // Draw Vertical Panel Folding Lines & Fills
-            panels.forEach(p => {
-                const px = offsetX + p.xStart * scale;
-                const pw = p.width * scale;
-                ctx2d.fillStyle = p.color;
-                ctx2d.fillRect(px, offsetY, pw, state.A * scale);
+            container.innerHTML = infoLines.length > 0 ? infoLines.map(l => `<div>${l}</div>`).join('') : '<div>Параметры симметричны</div>';
+        }
 
-                // Dashed Fold Line
-                ctx2d.setLineDash([5, 5]);
-                ctx2d.strokeStyle = '#475569';
-                ctx2d.beginPath();
-                ctx2d.moveTo(px, offsetY);
-                ctx2d.lineTo(px, offsetY + state.A * scale);
-                ctx2d.stroke();
-                ctx2d.setLineDash([]);
+        function autoFixSymmetry() {
+            const b1Center = state.T1 + state.B3 + state.B2 + (state.B1 / 2);
 
-                // Panel Label
-                ctx2d.fillStyle = '#94a3b8';
-                ctx2d.font = '10px Inter';
-                ctx2d.textAlign = 'center';
-                ctx2d.fillText(p.name, px + pw / 2, offsetY + 18);
+            if (state.embossing && typeof state.E2 === 'number') {
+                const dist = b1Center - state.E2;
+                state.E3 = Math.round(b1Center + dist);
+            }
+            if (state.embossing && typeof state.E1 === 'number') {
+                // Mirror E1 around B/2
+                const webCenter = state.B / 2;
+                state.E4 = Math.round(webCenter + (webCenter - state.E1));
+            }
+
+            if (state.perf && typeof state.P1 === 'number') {
+                const dist = b1Center - state.P1;
+                state.P2 = Math.round(b1Center + dist);
+            }
+
+            syncInputsFromState();
+        }
+
+        function switchTab(tabId) {
+            ['tab-geom', 'tab-seams', 'tab-roll'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                document.getElementById('btn-' + id).className = "flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border-b-2 border-transparent";
+            });
+            document.getElementById(tabId).classList.remove('hidden');
+            document.getElementById('btn-' + tabId).className = "flex-1 py-2.5 text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-white";
+        }
+
+        function updateWindingSvgIcon() {
+            const container = document.getElementById('windingSvgIcon');
+            let svg = '';
+            if (state.winding === 'R1' || state.winding === 'R2') {
+                svg = `<svg class="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="12" y1="4" x2="12" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>`;
+            } else {
+                svg = `<svg class="w-6 h-6 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><line x1="4" y1="12" x2="12" y2="12"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>`;
+            }
+            container.innerHTML = svg;
+        }
+
+        // ============================================================================
+        // 2. 2D ENGINE (ENGINEERING BLUEPRINT CANVAS & DIRECT INTERACTION)
+        // ============================================================================
+        const canvas2D = document.getElementById('blueprintCanvas');
+        const ctx2D = canvas2D.getContext('2d');
+        const container2D = document.getElementById('blueprintContainer');
+
+        let view2D = { zoom: 1, offsetX: 40, offsetY: 40 };
+        let dragTarget = null; // { type: 'handle'|'element'|'pan', id: string, startX, startY, origVal }
+        let hitboxes = []; // [{ type, id, x, y, w, h, val, prop }]
+
+        function reset2DView() {
+            view2D = { zoom: 1, offsetX: 40, offsetY: 40 };
+            render2DBlueprint();
+        }
+
+        function resize2DCanvas() {
+            const rect = container2D.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas2D.width = rect.width * dpr;
+            canvas2D.height = rect.height * dpr;
+            ctx2D.scale(dpr, dpr);
+            render2DBlueprint();
+        }
+
+        window.addEventListener('resize', resize2DCanvas);
+
+        function render2DBlueprint() {
+            const rect = container2D.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+
+            ctx2D.clearRect(0, 0, width, height);
+            hitboxes = [];
+
+            // Draw Background Grid
+            ctx2D.save();
+            ctx2D.strokeStyle = '#f1f5f9';
+            ctx2D.lineWidth = 1;
+            const gridSize = 20 * view2D.zoom;
+            for (let x = (view2D.offsetX % gridSize); x < width; x += gridSize) {
+                ctx2D.beginPath(); ctx2D.moveTo(x, 0); ctx2D.lineTo(x, height); ctx2D.stroke();
+            }
+            for (let y = (view2D.offsetY % gridSize); y < height; y += gridSize) {
+                ctx2D.beginPath(); ctx2D.moveTo(0, y); ctx2D.lineTo(width, y); ctx2D.stroke();
+            }
+            ctx2D.restore();
+
+            // Web Geometry Mapping to Canvas Coordinates
+            // Horizontal layout s in [0, B], Vertical in [0, A]
+            const drawH = Math.min(height - 140, 220) * view2D.zoom;
+            const scaleX = ((width - 120) / Math.max(state.B, 1)) * view2D.zoom;
+            const scaleY = (drawH / Math.max(state.A, 1));
+            
+            const originX = view2D.offsetX + 40;
+            const originY = view2D.offsetY + 60;
+
+            const x_T1 = originX + (state.T1 * scaleX);
+            const x_B3 = x_T1 + (state.B3 * scaleX);
+            const x_B2_left = x_B3 + (state.B2 * scaleX);
+            const x_B1 = x_B2_left + (state.B1 * scaleX);
+            const x_B2_right = x_B1 + (state.B2 * scaleX);
+            const x_B4 = x_B2_right + (state.B4 * scaleX);
+            const x_T2 = x_B4 + (state.T2 * scaleX);
+
+            const webY1 = originY;
+            const webY2 = originY + drawH;
+
+            // 1. DRAW FILM SECTIONS (T1 | B3 | B2 | B1 | B2 | B4 | T2)
+            // T1
+            ctx2D.fillStyle = '#e2e8f0';
+            ctx2D.fillRect(originX, webY1, x_T1 - originX, drawH);
+            
+            // B3 Outer Flap
+            ctx2D.fillStyle = '#ffedd5';
+            ctx2D.fillRect(x_T1, webY1, x_B3 - x_T1, drawH);
+
+            // Left B2 Gusset
+            ctx2D.fillStyle = '#ccfbf1';
+            ctx2D.fillRect(x_B3, webY1, x_B2_left - x_B3, drawH);
+
+            // B1 Front Panel ("ЛИЦО")
+            ctx2D.fillStyle = '#ffffff';
+            ctx2D.fillRect(x_B2_left, webY1, x_B1 - x_B2_left, drawH);
+
+            // Right B2 Gusset
+            ctx2D.fillStyle = '#ccfbf1';
+            ctx2D.fillRect(x_B1, webY1, x_B2_right - x_B1, drawH);
+
+            // B4 Inner Flap
+            ctx2D.fillStyle = '#f3e8ff';
+            ctx2D.fillRect(x_B2_right, webY1, x_B4 - x_B2_right, drawH);
+
+            // T2
+            ctx2D.fillStyle = '#e2e8f0';
+            ctx2D.fillRect(x_B4, webY1, x_T2 - x_B4, drawH);
+
+            // SECTION BORDERS & HINGE LINES
+            ctx2D.lineWidth = 1.5;
+            ctx2D.strokeStyle = '#94a3b8';
+            [originX, x_T1, x_B3, x_B2_left, x_B1, x_B2_right, x_B4, x_T2].forEach((x, idx) => {
+                ctx2D.beginPath(); ctx2D.moveTo(x, webY1); ctx2D.lineTo(x, webY2); ctx2D.stroke();
+                
+                // Add handle hitboxes for resizing segments
+                if (idx > 0 && idx < 7) {
+                    hitboxes.push({ type: 'handle_seg', id: idx, x: x - 4, y: webY1, w: 8, h: drawH });
+                }
             });
 
-            // Draw Gusset Center Fold Lines (Valley folds inside B2)
-            [xB3 + state.B2 / 2, xB1 + state.B2 / 2].forEach(midX => {
-                const px = offsetX + midX * scale;
-                ctx2d.setLineDash([2, 4]);
-                ctx2d.strokeStyle = '#a855f7';
-                ctx2d.beginPath();
-                ctx2d.moveTo(px, offsetY);
-                ctx2d.lineTo(px, offsetY + state.A * scale);
-                ctx2d.stroke();
-                ctx2d.setLineDash([]);
-            });
+            // Outer Web Border
+            ctx2D.lineWidth = 2;
+            ctx2D.strokeStyle = '#334155';
+            ctx2D.strokeRect(originX, webY1, x_T2 - originX, drawH);
 
-            // Draw Seams (S1, S2, S3)
-            // S1 Longitudinal Weld Seam
-            const s1X = offsetX + (state.T1 + state.S1_Off) * scale;
-            const s1W = state.S1_W * scale;
-            ctx2d.fillStyle = 'rgba(245, 158, 11, 0.35)';
-            ctx2d.fillRect(s1X, offsetY, s1W, state.A * scale);
-            ctx2d.strokeStyle = '#f59e0b';
-            ctx2d.lineWidth = 1;
-            ctx2d.strokeRect(s1X, offsetY, s1W, state.A * scale);
+            // GUSSET CENTER CREASE DASHED LINES
+            ctx2D.save();
+            ctx2D.setLineDash([4, 4]);
+            ctx2D.strokeStyle = '#0d9488';
+            const leftCreaseX = x_B3 + ((x_B2_left - x_B3) / 2);
+            const rightCreaseX = x_B1 + ((x_B2_right - x_B1) / 2);
+            const b1CenterAxisX = x_B2_left + ((x_B1 - x_B2_left) / 2);
 
-            // Draw Embossing Zones (E1 - E5)
-            Object.keys(state.emb).forEach(key => {
-                const e = state.emb[key];
-                const ex = offsetX + e.x * scale;
-                const ew = e.w * scale;
+            ctx2D.beginPath(); ctx2D.moveTo(leftCreaseX, webY1); ctx2D.lineTo(leftCreaseX, webY2); ctx2D.stroke();
+            ctx2D.beginPath(); ctx2D.moveTo(rightCreaseX, webY1); ctx2D.lineTo(rightCreaseX, webY2); ctx2D.stroke();
+            
+            // B1 Center Axis (blue dashed)
+            ctx2D.strokeStyle = '#2563eb';
+            ctx2D.beginPath(); ctx2D.moveTo(b1CenterAxisX, webY1 - 10); ctx2D.lineTo(b1CenterAxisX, webY2 + 10); ctx2D.stroke();
+            ctx2D.restore();
 
-                ctx2d.fillStyle = 'rgba(217, 119, 6, 0.25)';
-                ctx2d.fillRect(ex, offsetY, ew, state.A * scale);
-                ctx2d.strokeStyle = '#d97706';
-                ctx2d.strokeRect(ex, offsetY, ew, state.A * scale);
+            // SECTION LABELS
+            ctx2D.font = '600 11px Inter, sans-serif';
+            ctx2D.textAlign = 'center';
+            ctx2D.fillStyle = '#475569';
+            ctx2D.fillText('T1', originX + (x_T1 - originX)/2, webY1 + 18);
+            ctx2D.fillText('B3 (Внеш.кл.)', x_T1 + (x_B3 - x_T1)/2, webY1 + 18);
+            ctx2D.fillText('B2 (Фальц)', x_B3 + (x_B2_left - x_B3)/2, webY1 + 18);
+            ctx2D.fillText('B2 (Фальц)', x_B1 + (x_B2_right - x_B1)/2, webY1 + 18);
+            ctx2D.fillText('B4 (Внутр.кл.)', x_B2_right + (x_B4 - x_B2_right)/2, webY1 + 18);
+            ctx2D.fillText('T2', x_B4 + (x_T2 - x_B4)/2, webY1 + 18);
 
-                // Label
-                ctx2d.fillStyle = '#fef08a';
-                ctx2d.font = '9px monospace';
-                ctx2d.textAlign = 'center';
-                ctx2d.fillText(key, ex + ew / 2, offsetY + state.A * scale - 12);
-            });
+            // B1 MAIN LABEL ("ЛИЦО")
+            ctx2D.save();
+            ctx2D.translate(b1CenterAxisX, webY1 + drawH / 2);
+            if (state.scheme === "A2") ctx2D.rotate(Math.PI);
+            ctx2D.font = 'bold 18px Inter, sans-serif';
+            ctx2D.fillStyle = '#1e293b';
+            ctx2D.fillText('ЛИЦО (B1)', 0, 0);
+            ctx2D.font = '11px Inter, sans-serif';
+            ctx2D.fillStyle = '#64748b';
+            ctx2D.fillText(state.scheme === "A2" ? 'Схема A2 (180°)' : 'Схема A1 (Прямая)', 0, 18);
+            ctx2D.restore();
 
-            // Draw Needle Perforation Zones (P1, P2)
-            Object.keys(state.perf).forEach(key => {
-                const p = state.perf[key];
-                const px = offsetX + p.x * scale;
-                const pw = p.w * scale;
+            // 2. DRAW SEAMS S1, S2, S3
+            // Main seam S1 position: right margin x_S1
+            const x_S1 = (state.S3 && (state.B3 + state.B4 > state.B1)) ? (originX + (state.T1 + 2*state.B2 + 2*state.B1)*scaleX) : (x_T2 - (state.T2*scaleX));
+            ctx2D.save();
+            ctx2D.setLineDash([6, 3]);
+            ctx2D.lineWidth = 2;
+            
+            // S1 (center of seam)
+            ctx2D.strokeStyle = '#dc2626';
+            ctx2D.beginPath(); ctx2D.moveTo(x_S1, webY1); ctx2D.lineTo(x_S1, webY2); ctx2D.stroke();
+            drawCanvasLabel(x_S1, webY1 - 8, 'S1', '#dc2626');
 
-                ctx2d.fillStyle = 'rgba(14, 165, 233, 0.25)';
-                ctx2d.fillRect(px, offsetY, pw, state.A * scale);
-                ctx2d.strokeStyle = '#0284c7';
-                ctx2d.setLineDash([2, 2]);
-                ctx2d.strokeRect(px, offsetY, pw, state.A * scale);
-                ctx2d.setLineDash([]);
+            // S2
+            if (state.S2) {
+                const x_S2 = x_S1 + (state.S2Off * scaleX);
+                ctx2D.strokeStyle = '#ea580c';
+                ctx2D.beginPath(); ctx2D.moveTo(x_S2, webY1); ctx2D.lineTo(x_S2, webY2); ctx2D.stroke();
+                drawCanvasLabel(x_S2, webY1 - 8, 'S2', '#ea580c');
+                hitboxes.push({ type: 'elem', id: 'S2Off', x: x_S2 - 5, y: webY1, w: 10, h: drawH, val: state.S2Off });
+            }
 
-                ctx2d.fillStyle = '#bae6fd';
-                ctx2d.font = '9px monospace';
-                ctx2d.textAlign = 'center';
-                ctx2d.fillText(key, px + pw / 2, offsetY + state.A * scale - 25);
-            });
+            // S3
+            if (state.S3) {
+                const x_S3 = x_S1 + (state.S3Off * scaleX);
+                ctx2D.strokeStyle = '#2563eb';
+                ctx2D.beginPath(); ctx2D.moveTo(x_S3, webY1); ctx2D.lineTo(x_S3, webY2); ctx2D.stroke();
+                drawCanvasLabel(x_S3, webY1 - 8, 'S3', '#2563eb');
+                hitboxes.push({ type: 'elem', id: 'S3Off', x: x_S3 - 5, y: webY1, w: 10, h: drawH, val: state.S3Off });
+            }
+            ctx2D.restore();
 
-            // Draw Photomark
-            const pmX = offsetX + state.photo.x * scale;
-            const pmY = offsetY + state.photo.y * scale;
-            const pmW = state.photo.w * scale;
-            const pmH = state.photo.h * scale;
-            ctx2d.fillStyle = '#000000';
-            ctx2d.fillRect(pmX, pmY, pmW, pmH);
-            ctx2d.strokeStyle = '#ffffff';
-            ctx2d.strokeRect(pmX, pmY, pmW, pmH);
-
-            // Draw Symmetry Center Axis & Verification Annotations
-            const xCenter = state.T1 + state.B3 + state.B2 + state.B1 / 2;
-            const symCanvasX = offsetX + xCenter * scale;
-
-            if (state.symActive) {
-                // Dashed Center Axis
-                ctx2d.setLineDash([6, 4]);
-                ctx2d.strokeStyle = '#38bdf8';
-                ctx2d.lineWidth = 2;
-                ctx2d.beginPath();
-                ctx2d.moveTo(symCanvasX, offsetY - 20);
-                ctx2d.lineTo(symCanvasX, offsetY + state.A * scale + 20);
-                ctx2d.stroke();
-                ctx2d.setLineDash([]);
-
-                // Axis Tag
-                ctx2d.fillStyle = '#38bdf8';
-                ctx2d.font = '10px Inter';
-                ctx2d.textAlign = 'center';
-                ctx2d.fillText('Ось B1 (Симметрия)', symCanvasX, offsetY - 25);
-
-                // Highlight asymmetry deviations on 2D sheet
-                evalSymmetry().results.forEach(res => {
-                    if (res.pairType === 'pair') {
-                        const leftX = offsetX + res.itemLeft.x * scale;
-                        const leftW = res.itemLeft.w * scale;
-                        const rightX = offsetX + res.itemRight.x * scale;
-                        const rightW = res.itemRight.w * scale;
-
-                        const isOK = res.passed;
-                        ctx2d.strokeStyle = isOK ? '#22c55e' : '#ef4444';
-                        ctx2d.lineWidth = isOK ? 1.5 : 2.5;
-
-                        // Outline paired elements
-                        ctx2d.strokeRect(leftX - 2, offsetY + 30, leftW + 4, 30);
-                        ctx2d.strokeRect(rightX - 2, offsetY + 30, rightW + 4, 30);
-
-                        if (!isOK) {
-                            ctx2d.fillStyle = '#ef4444';
-                            ctx2d.font = '10px monospace';
-                            ctx2d.fillText(`Δ=${res.dev}mm`, (leftX + rightX) / 2, offsetY + 48);
+            // 3. DRAW PROCESSING FEATURES (EMBOSSING, PERFORATION, CUTS, PHOTOMARK)
+            
+            // Web Embossing E1..E5
+            if (state.embossing) {
+                const wPx = state.embWidth * scaleX;
+                ['E1', 'E2', 'E3', 'E4', 'E5'].forEach(key => {
+                    const val = state[key];
+                    if (typeof val === 'number') {
+                        const startX = state.embAnchor === 'left' ? (originX + val * scaleX) : (originX + (val - state.embWidth/2) * scaleX);
+                        ctx2D.save();
+                        ctx2D.fillStyle = 'rgba(37, 99, 235, 0.15)';
+                        ctx2D.fillRect(startX, webY1, wPx, drawH);
+                        ctx2D.strokeStyle = '#2563eb';
+                        ctx2D.strokeRect(startX, webY1, wPx, drawH);
+                        // Diagonal hatch
+                        ctx2D.strokeStyle = 'rgba(37, 99, 235, 0.4)';
+                        ctx2D.beginPath();
+                        for (let hx = startX; hx < startX + wPx; hx += 8) {
+                            ctx2D.moveTo(hx, webY1); ctx2D.lineTo(hx + 8, webY1 + 16);
                         }
+                        ctx2D.stroke();
+                        ctx2D.restore();
+
+                        drawCanvasLabel(startX + wPx/2, webY1 + drawH - 12, `${key}:${val}`, '#1d4ed8', key, val);
+                        hitboxes.push({ type: 'elem', id: key, x: startX, y: webY1, w: wPx, h: drawH, val: val });
                     }
                 });
             }
 
-            // Dimension Overlay Lines
-            if (showDims) {
-                ctx2d.strokeStyle = '#94a3b8';
-                ctx2d.lineWidth = 1;
-                ctx2d.fillStyle = '#94a3b8';
-                ctx2d.font = '10px monospace';
+            // Needle Perforation P1..P4
+            if (state.perf) {
+                const wPx = state.perfWidth * scaleX;
+                ['P1', 'P2', 'P3', 'P4'].forEach(key => {
+                    const val = state[key];
+                    if (typeof val === 'number') {
+                        const startX = originX + (val - state.perfWidth/2) * scaleX;
+                        ctx2D.save();
+                        ctx2D.fillStyle = 'rgba(16, 185, 129, 0.15)';
+                        ctx2D.fillRect(startX, webY1, wPx, drawH);
+                        ctx2D.fillStyle = '#059669';
+                        // Draw micro dots matrix
+                        for (let px = startX + 2; px < startX + wPx; px += 4) {
+                            for (let py = webY1 + 10; py < webY2 - 10; py += 12) {
+                                ctx2D.fillRect(px, py, 1.5, 1.5);
+                            }
+                        }
+                        ctx2D.restore();
 
-                // Height A (Right side)
-                const dimX = offsetX + state.B * scale + 15;
-                ctx2d.beginPath();
-                ctx2d.moveTo(dimX, offsetY); ctx2d.lineTo(dimX, offsetY + state.A * scale);
-                ctx2d.stroke();
-                ctx2d.fillText(`A=${state.A}mm`, dimX + 5, offsetY + state.A * scale / 2);
-
-                // Total Width B (Bottom)
-                const dimY = offsetY + state.A * scale + 15;
-                ctx2d.beginPath();
-                ctx2d.moveTo(offsetX, dimY); ctx2d.lineTo(offsetX + state.B * scale, dimY);
-                ctx2d.stroke();
-                ctx2d.textAlign = 'center';
-                ctx2d.fillText(`B=${state.B}mm`, offsetX + state.B * scale / 2, dimY + 12);
-            }
-        }
-
-        // --- MATHEMATICAL SYMMETRY EVALUATION ENGINE ---
-        function evalSymmetry() {
-            const xCenter = state.T1 + state.B3 + state.B2 + state.B1 / 2;
-            const results = [];
-            let allPassed = true;
-
-            // 1. Embossing Pairs: E1 & E5 (Flaps), E2 & E4 (Gussets), E3 (Centered on B1)
-            const pairs = [
-                { id: 'E1 / E5 (Тиснение)', l: { key: 'E1', ...state.emb.E1 }, r: { key: 'E5', ...state.emb.E5 } },
-                { id: 'E2 / E4 (Тиснение)', l: { key: 'E2', ...state.emb.E2 }, r: { key: 'E4', ...state.emb.E4 } },
-                { id: 'P1 / P2 (Перфорация)', l: { key: 'P1', ...state.perf.P1 }, r: { key: 'P2', ...state.perf.P2 } }
-            ];
-
-            pairs.forEach(p => {
-                const centerL = p.l.x + p.l.w / 2;
-                const centerR = p.r.x + p.r.w / 2;
-                const distL = Math.abs(xCenter - centerL);
-                const distR = Math.abs(xCenter - centerR);
-                const dev = Math.abs(distL - distR).toFixed(1);
-                const passed = parseFloat(dev) <= state.symTol;
-                if (!passed) allPassed = false;
-
-                results.push({
-                    name: p.id,
-                    pairType: 'pair',
-                    dev: dev,
-                    passed: passed,
-                    itemLeft: p.l,
-                    itemRight: p.r,
-                    targetCenterL: xCenter - distR,
-                    targetCenterR: xCenter + distL
+                        drawCanvasLabel(startX + wPx/2, webY1 + drawH - 26, `${key}:${val}`, '#047857', key, val);
+                        hitboxes.push({ type: 'elem', id: key, x: startX, y: webY1, w: wPx, h: drawH, val: val });
+                    }
                 });
-            });
-
-            // E3 Centered Check
-            const e3Center = state.emb.E3.x + state.emb.E3.w / 2;
-            const devE3 = Math.abs(e3Center - xCenter).toFixed(1);
-            const passedE3 = parseFloat(devE3) <= state.symTol;
-            if (!passedE3) allPassed = false;
-            results.push({
-                name: 'E3 (Тиснение по центру B1)',
-                pairType: 'single',
-                dev: devE3,
-                passed: passedE3,
-                item: state.emb.E3,
-                targetX: xCenter - state.emb.E3.w / 2
-            });
-
-            return { allPassed, results, xCenter };
-        }
-
-        function renderSymmetryInspector() {
-            const container = document.getElementById('symResultsContainer');
-            const dot = document.getElementById('symStatusDot');
-            const evalData = evalSymmetry();
-
-            if (evalData.allPassed) {
-                dot.className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
-            } else {
-                dot.className = 'w-3 h-3 rounded-full bg-rose-500 animate-pulse';
             }
 
-            container.innerHTML = evalData.results.map(r => `
-                <div class="flex items-center justify-between p-2 rounded border ${r.passed ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-rose-950/30 border-rose-800/60 text-rose-200'}">
-                    <span class="font-medium text-[11px]">${r.name}</span>
-                    <div class="flex items-center space-x-2 font-mono text-[11px]">
-                        <span>Δ = ${r.dev} мм</span>
-                        <span class="px-1.5 py-0.5 rounded text-[10px] ${r.passed ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-900 text-rose-200 border border-rose-700'}">
-                            ${r.passed ? 'Симметрично' : 'Смещение'}
-                        </span>
-                    </div>
-                </div>
-            `).join('');
+            // External Cuts (C1, D1)
+            if (state.extCuts) {
+                const cx = originX + (state.C1 * scaleX);
+                const cy = webY1 + (state.D1 * scaleY);
+                drawCutMatrix(cx, cy, state.extCutsPattern, 'C1/D1', '#d97706');
+                hitboxes.push({ type: 'elem', id: 'C1D1', x: cx - 15, y: cy - 15, w: 30, h: 30 });
+            }
+
+            // Internal Cuts (C2, D2)
+            if (state.intCuts) {
+                const cx = originX + (state.C2 * scaleX);
+                const cy = webY1 + (state.D2 * scaleY);
+                drawCutMatrix(cx, cy, state.intCutsPattern, 'C2/D2', '#7c3aed');
+                hitboxes.push({ type: 'elem', id: 'C2D2', x: cx - 15, y: cy - 15, w: 30, h: 30 });
+            }
+
+            // Flap Embossing (F, G)
+            if (state.flapEmb) {
+                const fx = originX + (state.F * scaleX);
+                const fy = webY1 + (state.G * scaleY);
+                const fw = state.flapEmbW * scaleX;
+                const fh = state.flapEmbH * scaleY;
+                ctx2D.save();
+                ctx2D.fillStyle = 'rgba(219, 39, 119, 0.2)';
+                ctx2D.fillRect(fx, fy, fw, fh);
+                ctx2D.strokeStyle = '#be185d';
+                ctx2D.strokeRect(fx, fy, fw, fh);
+                ctx2D.restore();
+                drawCanvasLabel(fx + fw/2, fy + fh/2, 'Flap Emb', '#be185d');
+                hitboxes.push({ type: 'elem', id: 'FG', x: fx, y: fy, w: fw, h: fh });
+            }
+
+            // Photomark
+            if (state.photomark) {
+                const pmX = originX + (state.pmX * scaleX);
+                const pmY = webY1 + (state.pmY * scaleY);
+                const pmW = state.pmW * scaleX;
+                const pmH = state.pmH * scaleY;
+                ctx2D.fillStyle = state.pmColor;
+                ctx2D.fillRect(pmX, pmY, pmW, pmH);
+                ctx2D.strokeStyle = '#ffffff';
+                ctx2D.strokeRect(pmX, pmY, pmW, pmH);
+                drawCanvasLabel(pmX + pmW/2, pmY - 8, 'Фотометка', state.pmColor);
+                hitboxes.push({ type: 'elem', id: 'photomark', x: pmX, y: pmY, w: pmW, h: pmH });
+            }
+
+            // 4. ENGINEERING DIMENSION LINES & LABELS
+            const dimY = webY2 + 35;
+            
+            // Bottom Segment Dimensions (T1, B3, B2, B1, B2, B4, T2)
+            drawDimLine(originX, x_T1, dimY, `T1:${state.T1}`, 'T1');
+            drawDimLine(x_T1, x_B3, dimY, `B3:${state.B3}`, 'B3');
+            drawDimLine(x_B3, x_B2_left, dimY, `B2:${state.B2}`, 'B2');
+            drawDimLine(x_B2_left, x_B1, dimY, `B1:${state.B1}`, 'B1');
+            drawDimLine(x_B1, x_B2_right, dimY, `B2:${state.B2}`, 'B2');
+            drawDimLine(x_B2_right, x_B4, dimY, `B4:${state.B4}`, 'B4');
+            drawDimLine(x_B4, x_T2, dimY, `T2:${state.T2}`, 'T2');
+
+            // Total Width B (Bottom Outer)
+            drawDimLine(originX, x_T2, dimY + 30, `B = ${state.B} мм`, 'B', true);
+
+            // Total Height A (Right Outer)
+            const dimX = x_T2 + 25;
+            drawVerticalDimLine(dimX, webY1, webY2, `A = ${state.A} мм`, 'A');
         }
 
-        function autoAlignSymmetry() {
-            const xCenter = state.T1 + state.B3 + state.B2 + state.B1 / 2;
+        function drawCutMatrix(cx, cy, patternStr, label, color) {
+            ctx2D.save();
+            ctx2D.fillStyle = color;
+            ctx2D.strokeStyle = color;
+            ctx2D.lineWidth = 1.5;
 
-            // Align E1 / E5 relative to xCenter
-            const distE1 = Math.abs(xCenter - (state.emb.E1.x + state.emb.E1.w / 2));
-            state.emb.E5.x = xCenter + distE1 - state.emb.E5.w / 2;
+            let rows = 3, cols = 6;
+            if (patternStr && patternStr.includes('x')) {
+                const parts = patternStr.split('x');
+                rows = parseInt(parts[0]) || 3;
+                cols = parseInt(parts[1]) || 6;
+            }
 
-            // Align E2 / E4
-            const distE2 = Math.abs(xCenter - (state.emb.E2.x + state.emb.E2.w / 2));
-            state.emb.E4.x = xCenter + distE2 - state.emb.E4.w / 2;
-
-            // Align E3 exactly centered
-            state.emb.E3.x = xCenter - state.emb.E3.w / 2;
-
-            // Align P1 / P2
-            const distP1 = Math.abs(xCenter - (state.perf.P1.x + state.perf.P1.w / 2));
-            state.perf.P2.x = xCenter + distP1 - state.perf.P2.w / 2;
-
-            // Sync UI inputs
-            document.getElementById('embE4_X').value = state.emb.E4.x.toFixed(0);
-            document.getElementById('embE5_X').value = state.emb.E5.x.toFixed(0);
-            document.getElementById('embE3_X').value = state.emb.E3.x.toFixed(0);
-            document.getElementById('perfP2_X').value = state.perf.P2.x.toFixed(0);
-
-            updateAll();
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const x = cx + (c - cols/2) * 4;
+                    const y = cy + (r - rows/2) * 4;
+                    ctx2D.beginPath(); ctx2D.moveTo(x, y - 2); ctx2D.lineTo(x, y + 2); ctx2D.stroke();
+                }
+            }
+            drawCanvasLabel(cx, cy - 12, label, color);
+            ctx2D.restore();
         }
 
-        function onSymmetrySettingsChange() {
-            state.symActive = document.getElementById('chkSymActive').checked;
-            state.symTol = parseFloat(document.getElementById('numSymTol').value) || 1.5;
-            draw2D();
-            renderSymmetryInspector();
+        function drawDimLine(x1, x2, y, text, propKey, isTotal = false) {
+            if (Math.abs(x2 - x1) < 4) return;
+            ctx2D.save();
+            ctx2D.strokeStyle = isTotal ? '#2563eb' : '#64748b';
+            ctx2D.fillStyle = isTotal ? '#2563eb' : '#334155';
+            ctx2D.lineWidth = isTotal ? 1.5 : 1;
+
+            // Dimension line
+            ctx2D.beginPath(); ctx2D.moveTo(x1, y); ctx2D.lineTo(x2, y); ctx2D.stroke();
+            
+            // Extension ticks
+            ctx2D.beginPath(); ctx2D.moveTo(x1, y - 4); ctx2D.lineTo(x1, y + 4); ctx2D.stroke();
+            ctx2D.beginPath(); ctx2D.moveTo(x2, y - 4); ctx2D.lineTo(x2, y + 4); ctx2D.stroke();
+
+            // Arrows
+            const arrowSize = 4;
+            if (x2 - x1 > 20) {
+                ctx2D.beginPath(); ctx2D.moveTo(x1, y); ctx2D.lineTo(x1 + arrowSize, y - 2); ctx2D.lineTo(x1 + arrowSize, y + 2); ctx2D.fill();
+                ctx2D.beginPath(); ctx2D.moveTo(x2, y); ctx2D.lineTo(x2 - arrowSize, y - 2); ctx2D.lineTo(x2 - arrowSize, y + 2); ctx2D.fill();
+            }
+
+            // Pill label
+            const midX = x1 + (x2 - x1)/2;
+            drawCanvasLabel(midX, y, text, isTotal ? '#2563eb' : '#334155', propKey, state[propKey]);
+
+            ctx2D.restore();
         }
 
-        // --- THREE.JS REALISTIC 3D FOLDING KINEMATICS ENGINE ---
-        let scene, camera, renderer, controls;
-        let bagGroup, bagMesh, textureCanvas, textureCtx, bagTexture;
-        let isPlayingFold = false, foldAnimDir = -1;
+        function drawVerticalDimLine(x, y1, y2, text, propKey) {
+            ctx2D.save();
+            ctx2D.strokeStyle = '#2563eb';
+            ctx2D.fillStyle = '#2563eb';
+            ctx2D.lineWidth = 1.5;
+
+            ctx2D.beginPath(); ctx2D.moveTo(x, y1); ctx2D.lineTo(x, y2); ctx2D.stroke();
+            ctx2D.beginPath(); ctx2D.moveTo(x - 4, y1); ctx2D.lineTo(x + 4, y1); ctx2D.stroke();
+            ctx2D.beginPath(); ctx2D.moveTo(x - 4, y2); ctx2D.lineTo(x + 4, y2); ctx2D.stroke();
+
+            const midY = y1 + (y2 - y1)/2;
+            ctx2D.save();
+            ctx2D.translate(x + 14, midY);
+            ctx2D.rotate(Math.PI / 2);
+            drawCanvasLabel(0, 0, text, '#2563eb', propKey, state[propKey]);
+            ctx2D.restore();
+
+            ctx2D.restore();
+        }
+
+        function drawCanvasLabel(x, y, text, color, propKey = null, val = null) {
+            ctx2D.font = '600 10px font-mono, monospace';
+            const metrics = ctx2D.measureText(text);
+            const pw = metrics.width + 8;
+            const ph = 14;
+
+            // Background pill
+            ctx2D.fillStyle = '#ffffff';
+            ctx2D.strokeStyle = color;
+            ctx2D.lineWidth = 1;
+            ctx2D.beginPath();
+            ctx2D.roundRect(x - pw/2, y - ph/2, pw, ph, 3);
+            ctx2D.fill(); ctx2D.stroke();
+
+            // Text
+            ctx2D.fillStyle = color;
+            ctx2D.textAlign = 'center';
+            ctx2D.textBaseline = 'middle';
+            ctx2D.fillText(text, x, y);
+
+            if (propKey) {
+                hitboxes.push({ type: 'dim_label', prop: propKey, x: x - pw/2, y: y - ph/2, w: pw, h: ph, val: val });
+            }
+        }
+
+        // 2D CANVAS MOUSE & DRAG INTERACTION
+        let activeHoverHitbox = null;
+
+        canvas2D.addEventListener('mousemove', (e) => {
+            const rect = canvas2D.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (dragTarget) {
+                // Perform dragging logic
+                const dx = (mouseX - dragTarget.startX) / view2D.zoom;
+                const dy = (mouseY - dragTarget.startY) / view2D.zoom;
+
+                const scaleX = ((rect.width - 120) / Math.max(state.B, 1));
+                const deltaMM = Math.round(dx / scaleX);
+
+                if (dragTarget.type === 'elem') {
+                    if (['E1','E2','E3','E4','E5','P1','P2','P3','P4'].includes(dragTarget.id)) {
+                        state[dragTarget.id] = Math.max(0, dragTarget.origVal + deltaMM);
+                    } else if (dragTarget.id === 'S2Off') {
+                        state.S2Off = Math.max(0, dragTarget.origVal + deltaMM);
+                    } else if (dragTarget.id === 'S3Off') {
+                        state.S3Off = Math.max(0, dragTarget.origVal + deltaMM);
+                    } else if (dragTarget.id === 'C1D1') {
+                        state.C1 = Math.max(0, dragTarget.origC1 + deltaMM);
+                        state.D1 = Math.max(0, dragTarget.origD1 + Math.round(dy / scaleX));
+                    } else if (dragTarget.id === 'C2D2') {
+                        state.C2 = Math.max(0, dragTarget.origC2 + deltaMM);
+                        state.D2 = Math.max(0, dragTarget.origD2 + Math.round(dy / scaleX));
+                    } else if (dragTarget.id === 'FG') {
+                        state.F = Math.max(0, dragTarget.origF + deltaMM);
+                        state.G = Math.max(0, dragTarget.origG + Math.round(dy / scaleX));
+                    } else if (dragTarget.id === 'photomark') {
+                        state.pmX = Math.max(0, dragTarget.origPmX + deltaMM);
+                        state.pmY = Math.max(0, dragTarget.origPmY + Math.round(dy / scaleX));
+                    }
+                    syncInputsFromState();
+                } else if (dragTarget.type === 'handle_seg') {
+                    // Resizing segments
+                    if (dragTarget.id === 1) state.T1 = Math.max(1, dragTarget.origVal + deltaMM);
+                    if (dragTarget.id === 2) state.B3 = Math.max(10, dragTarget.origVal + deltaMM);
+                    if (dragTarget.id === 3 || dragTarget.id === 5) state.B2 = Math.max(10, dragTarget.origVal + deltaMM);
+                    if (dragTarget.id === 4) state.B1 = Math.max(50, dragTarget.origVal + deltaMM);
+                    if (dragTarget.id === 6) state.B4 = Math.max(10, dragTarget.origVal + deltaMM);
+                    syncInputsFromState();
+                } else if (dragTarget.type === 'pan') {
+                    view2D.offsetX = dragTarget.origOffX + (mouseX - dragTarget.startX);
+                    view2D.offsetY = dragTarget.origOffY + (mouseY - dragTarget.startY);
+                    render2DBlueprint();
+                }
+
+                // Show live tooltip
+                const tooltip = document.getElementById('dragTooltip');
+                tooltip.classList.remove('hidden');
+                tooltip.style.left = (e.clientX + 12) + 'px';
+                tooltip.style.top = (e.clientY + 12) + 'px';
+                tooltip.textContent = `Δ: ${deltaMM > 0 ? '+' : ''}${deltaMM} мм`;
+                return;
+            }
+
+            // Hit testing
+            activeHoverHitbox = null;
+            for (let hb of hitboxes) {
+                if (mouseX >= hb.x && mouseX <= hb.x + hb.w && mouseY >= hb.y && mouseY <= hb.y + hb.h) {
+                    activeHoverHitbox = hb;
+                    break;
+                }
+            }
+
+            if (activeHoverHitbox) {
+                if (activeHoverHitbox.type === 'handle_seg') canvas2D.style.cursor = 'ew-resize';
+                else if (activeHoverHitbox.type === 'elem') canvas2D.style.cursor = 'move';
+                else if (activeHoverHitbox.type === 'dim_label') canvas2D.style.cursor = 'pointer';
+            } else {
+                canvas2D.style.cursor = 'crosshair';
+            }
+        });
+
+        canvas2D.addEventListener('mousedown', (e) => {
+            const rect = canvas2D.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (activeHoverHitbox) {
+                if (activeHoverHitbox.type === 'dim_label') {
+                    // Open Inline Number Input
+                    openInlineEdit(activeHoverHitbox, e.clientX, e.clientY);
+                    return;
+                }
+
+                dragTarget = {
+                    type: activeHoverHitbox.type,
+                    id: activeHoverHitbox.id,
+                    startX: mouseX,
+                    startY: mouseY,
+                    origVal: activeHoverHitbox.val || state[activeHoverHitbox.id] || 0,
+                    origC1: state.C1, origD1: state.D1,
+                    origC2: state.C2, origD2: state.D2,
+                    origF: state.F, origG: state.G,
+                    origPmX: state.pmX, origPmY: state.pmY
+                };
+            } else {
+                // Pan 2D Canvas
+                dragTarget = {
+                    type: 'pan',
+                    startX: mouseX,
+                    startY: mouseY,
+                    origOffX: view2D.offsetX,
+                    origOffY: view2D.offsetY
+                };
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            dragTarget = null;
+            document.getElementById('dragTooltip').classList.add('hidden');
+        });
+
+        function openInlineEdit(hitbox, screenX, screenY) {
+            const input = document.getElementById('inlineEditInput');
+            const rect = container2D.getBoundingClientRect();
+            input.style.left = (hitbox.x + hitbox.w/2) + 'px';
+            input.style.top = (hitbox.y + hitbox.h/2) + 'px';
+            input.value = state[hitbox.prop] !== undefined ? state[hitbox.prop] : '';
+            input.classList.remove('hidden');
+            input.focus();
+            input.select();
+
+            function applyEdit() {
+                input.classList.add('hidden');
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) {
+                    state[hitbox.prop] = val;
+                    syncInputsFromState();
+                }
+                input.removeEventListener('blur', applyEdit);
+                input.removeEventListener('keydown', onKey);
+            }
+
+            function onKey(e) {
+                if (e.key === 'Enter') applyEdit();
+                if (e.key === 'Escape') input.classList.add('hidden');
+            }
+
+            input.addEventListener('blur', applyEdit);
+            input.addEventListener('keydown', onKey);
+        }
+
+        // ============================================================================
+        // 3. THREE.JS REALISTIC FFS 3D SIMULATOR ENGINE (ZERO DEPENDENCIES)
+        // ============================================================================
+        let scene, camera, renderer, bagMesh, textureCanvas, textureCtx, bagTexture;
+        let isXRay = false;
+        let foldProgress = 0; // 0.0 to 1.0
+        let isAnimPlaying = false;
+        let animReqId = null;
+
+        // Custom Orbit Controls state
+        let isOrbiting = false, isPanning = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraRadius = 1400;
+        let cameraTheta = Math.PI / 4;
+        let cameraPhi = Math.PI / 3;
+        let cameraTarget = new THREE.Vector3(0, 0, 0);
 
         function init3D() {
             const container = document.getElementById('threeContainer');
-            const w = container.clientWidth;
-            const h = container.clientHeight;
-
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x020617); // Slate 950
+            scene.background = new THREE.Color(0x090d16);
 
-            camera = new THREE.PerspectiveCamera(40, w / h, 1, 5000);
-            camera.position.set(0, 450, 1100);
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
+            updateCameraPosition();
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(w, h);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-
-            // Lighting setup for realistic film reflection
-            const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(ambient);
+            // Lighting Setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+            scene.add(ambientLight);
 
             const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight1.position.set(300, 600, 500);
+            dirLight1.position.set(500, 1000, 750);
             scene.add(dirLight1);
 
-            const dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.4);
-            dirLight2.position.set(-300, -200, -500);
+            const dirLight2 = new THREE.DirectionalLight(0x93c5fd, 0.4);
+            dirLight2.position.set(-500, -500, -500);
             scene.add(dirLight2);
 
-            // Create Canvas Texture for 3D Mesh
+            // DYNAMIC TEXTURE CANVAS (2048x1024)
             textureCanvas = document.createElement('canvas');
-            textureCanvas.width = 1024;
+            textureCanvas.width = 2048;
             textureCanvas.height = 1024;
             textureCtx = textureCanvas.getContext('2d');
             bagTexture = new THREE.CanvasTexture(textureCanvas);
+            bagTexture.wrapS = THREE.ClampToEdgeWrapping;
+            bagTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-            bagGroup = new THREE.Group();
-            scene.add(bagGroup);
+            // Materials
+            update3DTextureAndMesh();
 
-            window.addEventListener('resize', onWindowResize);
-            update3DGeometry();
+            // CUSTOM ORBIT CAMERA MOUSE EVENTS
+            const domElem = renderer.domElement;
+            domElem.addEventListener('mousedown', (e) => {
+                if (e.button === 0 && !e.shiftKey) isOrbiting = true;
+                if (e.button === 2 || e.shiftKey) isPanning = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            domElem.addEventListener('contextmenu', e => e.preventDefault());
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isOrbiting && !isPanning) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                if (isOrbiting) {
+                    cameraTheta -= deltaX * 0.005;
+                    cameraPhi = Math.max(0.05, Math.min(Math.PI - 0.05, cameraPhi - deltaY * 0.005));
+                } else if (isPanning) {
+                    const panSpeed = cameraRadius * 0.001;
+                    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+                    cameraTarget.addScaledVector(right, -deltaX * panSpeed);
+                    cameraTarget.addScaledVector(up, deltaY * panSpeed);
+                }
+
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+                updateCameraPosition();
+            });
+
+            window.addEventListener('mouseup', () => {
+                isOrbiting = false; isPanning = false;
+            });
+
+            domElem.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                cameraRadius = Math.max(200, Math.min(4000, cameraRadius + e.deltaY * 1.5));
+                updateCameraPosition();
+            }, { passive: false });
+
+            window.addEventListener('resize', () => {
+                if (!renderer) return;
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+
+            // Start Render Loop
             animate3D();
         }
 
-        function update3DTexture() {
-            if (!textureCtx) return;
-            const tw = textureCanvas.width;
-            const th = textureCanvas.height;
-
-            textureCtx.fillStyle = '#f8fafc'; // White PE Film
-            textureCtx.fillRect(0, 0, tw, th);
-
-            // Draw grid & technical lines
-            textureCtx.strokeStyle = '#cbd5e1';
-            textureCtx.lineWidth = 2;
-            const sx = tw / state.B;
-            const sy = th / state.A;
-
-            // Draw Weld Seam S1
-            const s1X = (state.T1 + state.S1_Off) * sx;
-            const s1W = state.S1_W * sx;
-            textureCtx.fillStyle = 'rgba(245, 158, 11, 0.4)';
-            textureCtx.fillRect(s1X, 0, s1W, th);
-
-            // Draw Embossing Strips
-            Object.keys(state.emb).forEach(k => {
-                const e = state.emb[k];
-                textureCtx.fillStyle = 'rgba(217, 119, 6, 0.3)';
-                textureCtx.fillRect(e.x * sx, 0, e.w * sx, th);
-            });
-
-            // Draw Photomark
-            textureCtx.fillStyle = '#000000';
-            textureCtx.fillRect(state.photo.x * sx, state.photo.y * sy, state.photo.w * sx, state.photo.h * sy);
-
-            bagTexture.needsUpdate = true;
+        function updateCameraPosition() {
+            camera.position.x = cameraTarget.x + cameraRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+            camera.position.y = cameraTarget.y + cameraRadius * Math.cos(cameraPhi);
+            camera.position.z = cameraTarget.z + cameraRadius * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+            camera.lookAt(cameraTarget);
         }
 
-        /*
-         Kinematic Parametric Mesh Generation:
-         Polytubular fold from 0% (flat sheet) to 100% (M-gusset sleeve with overlapping rear seam).
-        */
-        function update3DGeometry() {
-            if (bagMesh) bagGroup.remove(bagMesh);
+        function setCameraView(view) {
+            cameraTarget.set(0, 0, 0);
+            if (view === 'iso') { cameraTheta = Math.PI/4; cameraPhi = Math.PI/3; cameraRadius = 1400; }
+            if (view === 'front') { cameraTheta = 0; cameraPhi = Math.PI/2; cameraRadius = 1400; }
+            if (view === 'back') { cameraTheta = Math.PI; cameraPhi = Math.PI/2; cameraRadius = 1400; }
+            if (view === 'top') { cameraTheta = 0; cameraPhi = 0.05; cameraRadius = 1400; }
+            updateCameraPosition();
+        }
 
-            update3DTexture();
+        function toggleXRay() {
+            isXRay = document.getElementById('inp-xray').checked;
+            update3DTextureAndMesh();
+        }
 
-            const t = state.foldPercent / 100; // 0 to 1
-            const vol = state.volumetric ? 1.0 : 0.05; // Volumetric openness factor
-
-            const A = state.A;
+        // ============================================================================
+        // 4. KINEMATIC FFS 3D GEOMETRY GENERATOR (ZERO STRETCHING, ZERO Z-FIGHTING)
+        // ============================================================================
+        function buildKinematicFFSGeometry(t) {
+            // t in [0.0, 1.0]
+            const B = Math.max(state.B, 1);
+            const A = Math.max(state.A, 1);
             const B1 = state.B1;
             const B2 = state.B2;
             const B3 = state.B3;
@@ -948,369 +1624,402 @@
             const T1 = state.T1;
             const T2 = state.T2;
 
-            // Subdivisions along width & height
-            const numPanels = 7;
-            const segmentsPerPanel = 6;
-            const heightSegments = 10;
+            // Discrete resolution
+            const segS = 160; // resolution across film width B
+            const segY = 40;  // resolution along height A
 
-            const geom = new THREE.BufferGeometry();
-            const positions = [];
-            const uvs = [];
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array((segS + 1) * (segY + 1) * 3);
+            const uvs = new Float32Array((segS + 1) * (segY + 1) * 2);
             const indices = [];
 
-            // Gusset M-fold calculation at 100% fold:
-            // Sleeve Depth = B2 * 0.45 * vol
-            const gussetDepth = (B2 / 2) * t * (0.15 + 0.85 * vol); 
-            const tubeDepth = B2 * 0.4 * t * vol;
+            // Stage 1: t in [0, 0.5] -> u = t/0.5 (Folds flat web into open box tube)
+            // Stage 2: t in [0.5, 1.0] -> v = (t-0.5)/0.5 (Tucks M-gussets inward into flat folded FFS)
+            const easeInOut = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
 
-            // X-coordinates along sheet width B
-            const xCoords = [
-                0, // 0: Start T1
-                T1, // 1: T1 -> B3
-                T1 + B3, // 2: B3 -> B2 Left
-                T1 + B3 + B2 / 2, // 3: Valley Fold Left
-                T1 + B3 + B2, // 4: B2 Left -> B1 Front
-                T1 + B3 + B2 + B1, // 5: B1 Front -> B2 Right
-                T1 + B3 + B2 + B1 + B2 / 2, // 6: Valley Fold Right
-                T1 + B3 + 2 * B2 + B1, // 7: B2 Right -> B4 Inner
-                T1 + B3 + 2 * B2 + B1 + B4, // 8: B4 -> T2
-                state.B // 9: End T2
-            ];
+            const u = easeInOut(Math.min(1, Math.max(0, t / 0.5)));
+            const v = easeInOut(Math.min(1, Math.max(0, (t - 0.5) / 0.5)));
 
-            // Compute 3D (X, Z) profiles for each key column at given fold progress t
-            function getPointProfile(uLinear) {
-                // uLinear ranges 0 to state.B
-                // Map to 3D space:
-                // Front panel B1 is centered at Z = +tubeDepth/2
-                // Rear flaps B3, B4 overlap at Z = -tubeDepth/2 (with layer offset Z)
-                const frontZ = (tubeDepth / 2) * t;
-                const backZ = (-tubeDepth / 2) * t;
+            // Key arc-length milestones along s in [0, B]
+            const s_T1 = T1;
+            const s_B3 = s_T1 + B3;
+            const s_B2_left = s_B3 + B2;
+            const s_B1 = s_B2_left + B1;
+            const s_B2_right = s_B1 + B2;
+            const s_B4 = s_B2_right + B4;
 
-                // Fold interpolation factor: flat X vs folded X
-                if (uLinear < T1 + B3) {
-                    // Outer Rear Flap B3 + T1
-                    const ratio = uLinear / (T1 + B3);
-                    const targetX = -B1 / 2 + ratio * (T1 + B3);
-                    const flatX = uLinear - state.B / 2;
-                    const x = flatX * (1 - t) + targetX * t;
-                    const z = 0 * (1 - t) + (backZ + 1.2) * t; // 1.2mm layer offset to prevent Z-fighting
-                    return { x, z };
-                } else if (uLinear < T1 + B3 + B2 / 2) {
-                    // Left Gusset Outer Sub-Panel (Back to Valley Apex)
-                    const ratio = (uLinear - (T1 + B3)) / (B2 / 2);
-                    const targetX = -B1 / 2 + ratio * (gussetDepth * 0.7);
-                    const targetZ = backZ + ratio * (frontZ - backZ) * 0.5;
-                    const flatX = uLinear - state.B / 2;
-                    return {
-                        x: flatX * (1 - t) + targetX * t,
-                        z: 0 * (1 - t) + targetZ * t
-                    };
-                } else if (uLinear < T1 + B3 + B2) {
-                    // Left Gusset Inner Sub-Panel (Valley Apex to Front)
-                    const ratio = (uLinear - (T1 + B3 + B2 / 2)) / (B2 / 2);
-                    const targetX = (-B1 / 2 + gussetDepth * 0.7) * (1 - ratio) + (-B1 / 2) * ratio;
-                    const targetZ = backZ * 0.5 + ratio * (frontZ - backZ * 0.5);
-                    const flatX = uLinear - state.B / 2;
-                    return {
-                        x: flatX * (1 - t) + targetX * t,
-                        z: 0 * (1 - t) + targetZ * t
-                    };
-                } else if (uLinear <= T1 + B3 + B2 + B1) {
-                    // Front Panel B1
-                    const ratio = (uLinear - (T1 + B3 + B2)) / B1;
-                    const targetX = -B1 / 2 + ratio * B1;
-                    const flatX = uLinear - state.B / 2;
-                    return {
-                        x: flatX * (1 - t) + targetX * t,
-                        z: 0 * (1 - t) + frontZ * t
-                    };
-                } else if (uLinear < T1 + B3 + B2 + B1 + B2 / 2) {
-                    // Right Gusset Inner Sub-Panel (Front to Valley Apex)
-                    const ratio = (uLinear - (T1 + B3 + B2 + B1)) / (B2 / 2);
-                    const targetX = B1 / 2 - ratio * (gussetDepth * 0.7);
-                    const targetZ = frontZ - ratio * (frontZ - backZ) * 0.5;
-                    const flatX = uLinear - state.B / 2;
-                    return {
-                        x: flatX * (1 - t) + targetX * t,
-                        z: 0 * (1 - t) + targetZ * t
-                    };
-                } else if (uLinear <= T1 + B3 + 2 * B2 + B1) {
-                    // Right Gusset Outer Sub-Panel (Valley Apex to Back)
-                    const ratio = (uLinear - (T1 + B3 + B2 + B1 + B2 / 2)) / (B2 / 2);
-                    const targetX = (B1 / 2 - gussetDepth * 0.7) * (1 - ratio) + (B1 / 2) * ratio;
-                    const targetZ = (frontZ * 0.5) * (1 - ratio) + backZ * ratio;
-                    const flatX = uLinear - state.B / 2;
-                    return {
-                        x: flatX * (1 - t) + targetX * t,
-                        z: 0 * (1 - t) + targetZ * t
-                    };
-                } else {
-                    // Inner Rear Flap B4 + T2
-                    const ratio = (uLinear - (T1 + B3 + 2 * B2 + B1)) / (B4 + T2);
-                    const targetX = B1 / 2 - ratio * (B4 + T2);
-                    const flatX = uLinear - state.B / 2;
-                    return {
-                        x: flatX * (1 - t) + targetX * t,
-                        z: 0 * (1 - t) + backZ * t // Inner overlap layer
-                    };
+            // Compute 2D Cross-section Profile (X(s), Z(s)) in millimeters
+            function getCrossSectionPoint(s) {
+                let x = 0, z = 0, zLayerOffset = 0;
+
+                // Layer gaps to prevent Z-fighting (2.5mm physical layer separation)
+                const layerGap = 2.5;
+
+                // Segment 3: Front B1 panel (Stationary at Z=0, centered at X=0)
+                if (s >= s_B2_left && s <= s_B1) {
+                    const localS = s - s_B2_left;
+                    x = (localS - B1/2);
+                    z = 0;
+                    zLayerOffset = 0;
+                }
+                // Right Side (s > s_B1)
+                else if (s > s_B1) {
+                    const localS = s - s_B1;
+                    const startX = B1/2;
+                    const startZ = 0;
+
+                    if (localS <= B2/2) {
+                        // Right gusset 1st half
+                        const angle1 = -u * (Math.PI/2) - v * (Math.PI/2 - 0.08);
+                        x = startX + localS * Math.cos(angle1);
+                        z = startZ + localS * Math.sin(angle1);
+                        zLayerOffset = -layerGap * v;
+                    } else if (localS <= B2) {
+                        // Right gusset 2nd half
+                        const len1 = B2/2;
+                        const angle1 = -u * (Math.PI/2) - v * (Math.PI/2 - 0.08);
+                        const cornerX = startX + len1 * Math.cos(angle1);
+                        const cornerZ = startZ + len1 * Math.sin(angle1);
+
+                        const len2 = localS - B2/2;
+                        const angle2 = -u * (Math.PI/2) + v * (Math.PI/2 - 0.08);
+                        x = cornerX + len2 * Math.cos(angle2);
+                        z = cornerZ + len2 * Math.sin(angle2);
+                        zLayerOffset = -layerGap * 1.5 * v;
+                    } else {
+                        // Inner flap B4 + T2 (Back wall)
+                        const len1 = B2/2;
+                        const angle1 = -u * (Math.PI/2) - v * (Math.PI/2 - 0.08);
+                        const angle2 = -u * (Math.PI/2) + v * (Math.PI/2 - 0.08);
+                        const backRightX = startX + len1 * Math.cos(angle1) + len1 * Math.cos(angle2);
+                        const backRightZ = startZ + len1 * Math.sin(angle1) + len1 * Math.sin(angle2);
+
+                        const len3 = localS - B2;
+                        const angle3 = -Math.PI * u; // Fold across back toward left
+                        x = backRightX + len3 * Math.cos(angle3);
+                        z = backRightZ + len3 * Math.sin(angle3) - layerGap;
+                        zLayerOffset = -layerGap * 2 * v;
+                    }
+                }
+                // Left Side (s < s_B2_left)
+                else {
+                    const localS = s_B2_left - s;
+                    const startX = -B1/2;
+                    const startZ = 0;
+
+                    if (localS <= B2/2) {
+                        // Left gusset 2nd half (adjacent to B1)
+                        const angle1 = Math.PI + u * (Math.PI/2) + v * (Math.PI/2 - 0.08);
+                        x = startX + localS * Math.cos(angle1);
+                        z = startZ + localS * Math.sin(angle1);
+                        zLayerOffset = -layerGap * v;
+                    } else if (localS <= B2) {
+                        // Left gusset 1st half
+                        const len1 = B2/2;
+                        const angle1 = Math.PI + u * (Math.PI/2) + v * (Math.PI/2 - 0.08);
+                        const cornerX = startX + len1 * Math.cos(angle1);
+                        const cornerZ = startZ + len1 * Math.sin(angle1);
+
+                        const len2 = localS - B2/2;
+                        const angle2 = Math.PI + u * (Math.PI/2) - v * (Math.PI/2 - 0.08);
+                        x = cornerX + len2 * Math.cos(angle2);
+                        z = cornerZ + len2 * Math.sin(angle2);
+                        zLayerOffset = -layerGap * 1.5 * v;
+                    } else {
+                        // Outer flap B3 + T1 (Back wall outer layer)
+                        const len1 = B2/2;
+                        const angle1 = Math.PI + u * (Math.PI/2) + v * (Math.PI/2 - 0.08);
+                        const angle2 = Math.PI + u * (Math.PI/2) - v * (Math.PI/2 - 0.08);
+                        const backLeftX = startX + len1 * Math.cos(angle1) + len1 * Math.cos(angle2);
+                        const backLeftZ = startZ + len1 * Math.sin(angle1) + len1 * Math.sin(angle2);
+
+                        const len3 = localS - B2;
+                        const angle3 = Math.PI + Math.PI * u; // Fold across back toward right
+                        x = backLeftX + len3 * Math.cos(angle3);
+                        z = backLeftZ + len3 * Math.sin(angle3) - (layerGap * 2.2);
+                        zLayerOffset = -layerGap * 2.5 * v;
+                    }
+                }
+
+                return { x, z: z + zLayerOffset };
+            }
+
+            // Fill Vertices & UVs
+            let ptrPos = 0, ptrUV = 0;
+            for (let j = 0; j <= segY; j++) {
+                const y = (j / segY - 0.5) * A;
+                const v_uv = j / segY;
+
+                for (let i = 0; i <= segS; i++) {
+                    const u_uv = i / segS;
+                    const s = u_uv * B;
+
+                    const pt = getCrossSectionPoint(s);
+
+                    positions[ptrPos++] = pt.x;
+                    positions[ptrPos++] = y;
+                    positions[ptrPos++] = pt.z;
+
+                    uvs[ptrUV++] = u_uv;
+                    uvs[ptrUV++] = v_uv;
                 }
             }
 
-            // Build Mesh Vertices Grid
-            const cols = 60;
-            const rows = heightSegments;
+            // Fill Indices
+            for (let j = 0; j < segY; j++) {
+                for (let i = 0; i < segS; i++) {
+                    const a = j * (segS + 1) + i;
+                    const b = j * (segS + 1) + (i + 1);
+                    const c = (j + 1) * (segS + 1) + (i + 1);
+                    const d = (j + 1) * (segS + 1) + i;
 
-            for (let r = 0; r <= rows; r++) {
-                const v = r / rows;
-                const y = (v - 0.5) * A;
-
-                for (let c = 0; c <= cols; c++) {
-                    const u = c / cols;
-                    const uLinear = u * state.B;
-
-                    const pt = getPointProfile(uLinear);
-
-                    positions.push(pt.x, y, pt.z);
-                    uvs.push(u, v);
+                    indices.push(a, b, d);
+                    indices.push(b, c, d);
                 }
             }
 
-            // Generate Triangles
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const i1 = r * (cols + 1) + c;
-                    const i2 = i1 + 1;
-                    const i3 = (r + 1) * (cols + 1) + c;
-                    const i4 = i3 + 1;
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
 
-                    indices.push(i1, i3, i2);
-                    indices.push(i2, i3, i4);
-                }
+            return { geometry, getCrossSectionPoint };
+        }
+
+        function update3DTextureAndMesh() {
+            if (!textureCtx) return;
+
+            // 1. DRAW HIGH-DPI CANVAS TEXTURE (2048x1024)
+            const tw = textureCanvas.width;
+            const th = textureCanvas.height;
+
+            textureCtx.fillStyle = '#ffffff';
+            textureCtx.fillRect(0, 0, tw, th);
+
+            const scaleX = tw / Math.max(state.B, 1);
+            const scaleY = th / Math.max(state.A, 1);
+
+            // Draw Section Boundaries
+            const s_T1 = state.T1 * scaleX;
+            const s_B3 = s_T1 + state.B3 * scaleX;
+            const s_B2_left = s_B3 + state.B2 * scaleX;
+            const s_B1 = s_B2_left + state.B1 * scaleX;
+            const s_B2_right = s_B1 + state.B2 * scaleX;
+            const s_B4 = s_B2_right + state.B4 * scaleX;
+
+            textureCtx.strokeStyle = '#cbd5e1';
+            textureCtx.lineWidth = 2;
+            [s_T1, s_B3, s_B2_left, s_B1, s_B2_right, s_B4].forEach(x => {
+                textureCtx.beginPath(); textureCtx.moveTo(x, 0); textureCtx.lineTo(x, th); textureCtx.stroke();
+            });
+
+            // Draw B1 Label
+            textureCtx.save();
+            textureCtx.translate(s_B2_left + (s_B1 - s_B2_left)/2, th/2);
+            if (state.scheme === "A2") textureCtx.rotate(Math.PI);
+            textureCtx.font = 'bold 72px Inter, sans-serif';
+            textureCtx.fillStyle = '#1e293b';
+            textureCtx.textAlign = 'center';
+            textureCtx.fillText('ЛИЦО', 0, 0);
+            textureCtx.restore();
+
+            // Draw Embossing Strips
+            if (state.embossing) {
+                const wPx = state.embWidth * scaleX;
+                ['E1','E2','E3','E4','E5'].forEach(k => {
+                    const val = state[k];
+                    if (typeof val === 'number') {
+                        const startX = state.embAnchor === 'left' ? (val * scaleX) : ((val - state.embWidth/2) * scaleX);
+                        textureCtx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+                        textureCtx.fillRect(startX, 0, wPx, th);
+                        textureCtx.strokeStyle = '#2563eb';
+                        textureCtx.strokeRect(startX, 0, wPx, th);
+                    }
+                });
             }
 
-            geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-            geom.setIndex(indices);
-            geom.computeVertexNormals();
+            // Draw Needle Perforation
+            if (state.perf) {
+                const wPx = state.perfWidth * scaleX;
+                ['P1','P2','P3','P4'].forEach(k => {
+                    const val = state[k];
+                    if (typeof val === 'number') {
+                        const startX = (val - state.perfWidth/2) * scaleX;
+                        textureCtx.fillStyle = '#059669';
+                        for (let px = startX; px < startX + wPx; px += 12) {
+                            for (let py = 20; py < th - 20; py += 30) {
+                                textureCtx.fillRect(px, py, 4, 4);
+                            }
+                        }
+                    }
+                });
+            }
 
-            // Double sided material for realistic film folding
-            const mat = new THREE.MeshStandardMaterial({
+            // Draw Photo Mark
+            if (state.photomark) {
+                textureCtx.fillStyle = state.pmColor;
+                textureCtx.fillRect(state.pmX * scaleX, state.pmY * scaleY, state.pmW * scaleX, state.pmH * scaleY);
+            }
+
+            // Seam lines
+            textureCtx.strokeStyle = '#dc2626';
+            textureCtx.setLineDash([12, 6]);
+            textureCtx.lineWidth = 4;
+            const seamX = (tw - state.T2 * scaleX);
+            textureCtx.beginPath(); textureCtx.moveTo(seamX, 0); textureCtx.lineTo(seamX, th); textureCtx.stroke();
+
+            bagTexture.needsUpdate = true;
+
+            // 2. REBUILD MESH GEOMETRY & MATERIAL
+            if (bagMesh) scene.remove(bagMesh);
+
+            const { geometry } = buildKinematicFFSGeometry(foldProgress);
+
+            const material = new THREE.MeshStandardMaterial({
                 map: bagTexture,
                 side: THREE.DoubleSide,
                 roughness: 0.3,
                 metalness: 0.1,
-                transparent: state.xray,
-                opacity: state.xray ? 0.45 : 1.0,
+                transparent: isXRay,
+                opacity: isXRay ? 0.45 : 1.0,
                 wireframe: false
             });
 
-            bagMesh = new THREE.Mesh(geom, mat);
-            if (bagGroup) bagGroup.add(bagMesh);
+            bagMesh = new THREE.Mesh(geometry, material);
+            scene.add(bagMesh);
+        }
+
+        // FOLD SLIDER & ANIMATION LOGIC
+        function onFoldSliderInput(val) {
+            foldProgress = parseFloat(val);
+            document.getElementById('foldPercentLabel').textContent = Math.round(foldProgress * 100) + '%';
+            document.getElementById('csFoldText').textContent = Math.round(foldProgress * 100) + '%';
+            update3DTextureAndMesh();
+            renderCrossSection();
+        }
+
+        function setFoldProgress(val) {
+            document.getElementById('foldSlider').value = val;
+            onFoldSliderInput(val);
+        }
+
+        function togglePlayFold() {
+            isAnimPlaying = !isAnimPlaying;
+            const btn = document.getElementById('playPauseBtn');
+            btn.textContent = isAnimPlaying ? '❚❚' : '▶';
+
+            if (isAnimPlaying) {
+                let lastTime = performance.now();
+                let dir = 1;
+
+                function stepAnim(now) {
+                    if (!isAnimPlaying) return;
+                    const dt = (now - lastTime) / 1000;
+                    lastTime = now;
+
+                    foldProgress += dir * dt * 0.4;
+                    if (foldProgress >= 1) { foldProgress = 1; dir = -1; }
+                    if (foldProgress <= 0) { foldProgress = 0; dir = 1; }
+
+                    setFoldProgress(foldProgress);
+                    animReqId = requestAnimationFrame(stepAnim);
+                }
+                animReqId = requestAnimationFrame(stepAnim);
+            }
         }
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-
-            if (isPlayingFold) {
-                state.foldPercent += foldAnimDir * 0.8;
-                if (state.foldPercent <= 0) {
-                    state.foldPercent = 0;
-                    foldAnimDir = 1;
-                } else if (state.foldPercent >= 100) {
-                    state.foldPercent = 100;
-                    foldAnimDir = -1;
-                }
-                document.getElementById('rngFold').value = state.foldPercent;
-                document.getElementById('lblFoldPercent').textContent = `${Math.round(state.foldPercent)}% Рукав`;
-                update3DGeometry();
-            }
-
-            controls.update();
-            renderer.render(scene, camera);
-        }
-
-        function onWindowResize() {
-            const container = document.getElementById('threeContainer');
-            if (!container || !renderer || !camera) return;
-            camera.aspect = container.clientWidth / container.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            resize2DCanvas();
-        }
-
-        function setCameraView(view) {
-            controls.reset();
-            if (view === 'iso') {
-                camera.position.set(0, 450, 1100);
-            } else if (view === 'front') {
-                camera.position.set(0, 0, 1100);
-            } else if (view === 'back') {
-                camera.position.set(0, 0, -1100);
-            } else if (view === 'top') {
-                camera.position.set(0, 1100, 0);
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
             }
         }
 
-        function togglePlayFold() {
-            isPlayingFold = !isPlayingFold;
-            document.getElementById('btnPlayFold').textContent = isPlayingFold ? '⏸' : '▶';
-        }
+        // ============================================================================
+        // 5. LIVE 2D CROSS-SECTION MINI-VIEWER (OVERLAY IN 3D PANE)
+        // ============================================================================
+        function renderCrossSection() {
+            const csCanvas = document.getElementById('crossSectionCanvas');
+            const csCtx = csCanvas.getContext('2d');
+            const w = csCanvas.width;
+            const h = csCanvas.height;
 
-        function onFoldProgressInput(val) {
-            state.foldPercent = parseFloat(val);
-            document.getElementById('lblFoldPercent').textContent = `${Math.round(state.foldPercent)}% Рукав`;
-            update3DGeometry();
-        }
+            csCtx.clearRect(0, 0, w, h);
 
-        function toggleVolumeMode() {
-            state.volumetric = !state.volumetric;
-            const btn = document.getElementById('btnVolumetric');
-            btn.textContent = state.volumetric ? 'Объемный 3D' : 'Плоский рукав';
-            btn.className = state.volumetric ? 
-                'px-2.5 py-1 text-xs rounded-md bg-indigo-600 text-white font-medium shadow' : 
-                'px-2.5 py-1 text-xs rounded-md bg-slate-800 text-slate-300 font-medium border border-slate-700';
-            update3DGeometry();
-        }
+            // Re-evaluate cross-section profile at discrete points
+            const B = Math.max(state.B, 1);
+            const { getCrossSectionPoint } = buildKinematicFFSGeometry(foldProgress);
 
-        function toggleXRay(val) {
-            state.xray = val;
-            update3DGeometry();
-        }
+            const samples = 120;
+            const points = [];
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
 
-        // --- PARAMETER SYNCHRONIZATION ---
-        function toggleAutoB() {
-            state.autoB = document.getElementById('chkAutoB').checked;
-            document.getElementById('paramB').disabled = state.autoB;
-            updateAll();
-        }
-
-        function updateAllFromInputs() {
-            state.A = parseFloat(document.getElementById('paramA').value) || 780;
-            state.B1 = parseFloat(document.getElementById('paramB1').value) || 390;
-            state.B2 = parseFloat(document.getElementById('paramB2').value) || 200;
-            state.B3 = parseFloat(document.getElementById('paramB3').value) || 195;
-            state.B4 = parseFloat(document.getElementById('paramB4').value) || 195;
-            state.T1 = parseFloat(document.getElementById('paramT1').value) || 8;
-            state.T2 = parseFloat(document.getElementById('paramT2').value) || 32;
-
-            if (state.autoB) {
-                state.B = state.T1 + state.B3 + 2 * state.B2 + state.B1 + state.B4 + state.T2;
-                document.getElementById('paramB').value = state.B;
-            } else {
-                state.B = parseFloat(document.getElementById('paramB').value) || 1220;
+            for (let i = 0; i <= samples; i++) {
+                const s = (i / samples) * B;
+                const pt = getCrossSectionPoint(s);
+                points.push({ s, x: pt.x, z: pt.z });
+                minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+                minZ = Math.min(minZ, pt.z); maxZ = Math.max(maxZ, pt.z);
             }
 
-            document.getElementById('lblBVal').textContent = state.B;
-            document.getElementById('lblFormularB').textContent = 
-                `${state.B} = ${state.T1} + ${state.B3} + ${2*state.B2} + ${state.B1} + ${state.B4} + ${state.T2}`;
+            const rangeX = Math.max(maxX - minX, 50);
+            const rangeZ = Math.max(maxZ - minZ, 50);
+            const scale = Math.min((w - 24) / rangeX, (h - 24) / rangeZ);
 
-            // Seams
-            state.S1_W = parseFloat(document.getElementById('paramS1W').value) || 15;
-            state.S1_Off = parseFloat(document.getElementById('paramS1Off').value) || 5;
+            const midX = minX + (maxX - minX)/2;
+            const midZ = minZ + (maxZ - minZ)/2;
 
-            // Embossing
-            state.emb.E1 = { x: parseFloat(document.getElementById('embE1_X').value)||0, w: parseFloat(document.getElementById('embE1_W').value)||50 };
-            state.emb.E2 = { x: parseFloat(document.getElementById('embE2_X').value)||0, w: parseFloat(document.getElementById('embE2_W').value)||60 };
-            state.emb.E3 = { x: parseFloat(document.getElementById('embE3_X').value)||0, w: parseFloat(document.getElementById('embE3_W').value)||110 };
-            state.emb.E4 = { x: parseFloat(document.getElementById('embE4_X').value)||0, w: parseFloat(document.getElementById('embE4_W').value)||60 };
-            state.emb.E5 = { x: parseFloat(document.getElementById('embE5_X').value)||0, w: parseFloat(document.getElementById('embE5_W').value)||50 };
+            csCtx.save();
+            csCtx.translate(w/2, h/2);
+            csCtx.scale(scale, -scale);
+            csCtx.translate(-midX, -midZ);
 
-            // Perforation
-            state.perf.P1 = { x: parseFloat(document.getElementById('perfP1_X').value)||0, w: parseFloat(document.getElementById('perfP1_W').value)||40 };
-            state.perf.P2 = { x: parseFloat(document.getElementById('perfP2_X').value)||0, w: parseFloat(document.getElementById('perfP2_W').value)||40 };
+            // Draw Cross Section Polyline with Segment Color Coding
+            csCtx.lineWidth = 3 / scale;
+            
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i];
+                const p2 = points[i+1];
 
-            // Photomark
-            state.photo.x = parseFloat(document.getElementById('photoX').value) || 15;
-            state.photo.y = parseFloat(document.getElementById('photoY').value) || 10;
-            state.photo.w = parseFloat(document.getElementById('photoW').value) || 20;
-            state.photo.h = parseFloat(document.getElementById('photoH').value) || 10;
-        }
+                // Color code by segment
+                const s_B3 = state.T1 + state.B3;
+                const s_B2_left = s_B3 + state.B2;
+                const s_B1 = s_B2_left + state.B1;
+                const s_B2_right = s_B1 + state.B2;
 
-        function updateAll() {
-            updateAllFromInputs();
-            draw2D();
-            renderSymmetryInspector();
-            update3DGeometry();
-        }
+                if (p1.s >= s_B2_left && p1.s <= s_B1) csCtx.strokeStyle = '#2563eb'; // B1 Blue
+                else if ((p1.s >= s_B3 && p1.s < s_B2_left) || (p1.s > s_B1 && p1.s <= s_B2_right)) csCtx.strokeStyle = '#0d9488'; // Gussets Teal
+                else if (p1.s < s_B3) csCtx.strokeStyle = '#ea580c'; // Outer Flap Orange
+                else csCtx.strokeStyle = '#a855f7'; // Inner Flap Purple
 
-        // Preset Loader
-        function loadPreset(presetKey) {
-            if (presetKey === 'tk03343') {
-                document.getElementById('paramA').value = 780;
-                document.getElementById('paramB1').value = 390;
-                document.getElementById('paramB2').value = 200;
-                document.getElementById('paramB3').value = 195;
-                document.getElementById('paramB4').value = 195;
-                document.getElementById('paramT1').value = 8;
-                document.getElementById('paramT2').value = 32;
-            } else if (presetKey === 'compact') {
-                document.getElementById('paramA').value = 650;
-                document.getElementById('paramB1').value = 350;
-                document.getElementById('paramB2').value = 160;
-                document.getElementById('paramB3').value = 175;
-                document.getElementById('paramB4').value = 175;
-            } else if (presetKey === 'heavy') {
-                document.getElementById('paramA').value = 850;
-                document.getElementById('paramB1').value = 420;
-                document.getElementById('paramB2').value = 220;
-                document.getElementById('paramB3').value = 210;
-                document.getElementById('paramB4').value = 210;
+                csCtx.beginPath();
+                csCtx.moveTo(p1.x, p1.z);
+                csCtx.lineTo(p2.x, p2.z);
+                csCtx.stroke();
             }
-            updateAll();
+
+            // Draw Seam Dot
+            const seamPt = points[points.length - 1];
+            csCtx.fillStyle = '#dc2626';
+            csCtx.beginPath();
+            csCtx.arc(seamPt.x, seamPt.z, 4 / scale, 0, Math.PI * 2);
+            csCtx.fill();
+
+            csCtx.restore();
         }
 
-        // Export/Import JSON Configuration
-        function exportJSON() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr);
-            dlAnchor.setAttribute("download", `FFS_TechCard_03343_Config.json`);
-            document.body.appendChild(dlAnchor);
-            dlAnchor.click();
-            dlAnchor.remove();
-        }
-
-        function importJSON(event) {
-            const fileReader = new FileReader();
-            fileReader.onload = function(e) {
-                try {
-                    const importedState = JSON.parse(e.target.result);
-                    Object.assign(state, importedState);
-                    // Update input fields
-                    document.getElementById('paramA').value = state.A;
-                    document.getElementById('paramB1').value = state.B1;
-                    document.getElementById('paramB2').value = state.B2;
-                    document.getElementById('paramB3').value = state.B3;
-                    document.getElementById('paramB4').value = state.B4;
-                    document.getElementById('paramT1').value = state.T1;
-                    document.getElementById('paramT2').value = state.T2;
-                    updateAll();
-                } catch(err) {
-                    console.error('Ошибка при чтении файла конфигурации JSON:', err);
-                }
-            };
-            fileReader.readAsText(event.target.files[0]);
-        }
-
-        // Mouse hover coordinates on 2D Canvas
-        canvas2d.addEventListener('mousemove', (e) => {
-            const rect = canvas2d.getBoundingClientRect();
-            const hoverBox = document.getElementById('canvasHoverInfo');
-            const x = Math.round(e.clientX - rect.left);
-            const y = Math.round(e.clientY - rect.top);
-            hoverBox.classList.remove('hidden');
-            hoverBox.textContent = `2D Canvas (px) X: ${x} | Y: ${y}`;
-        });
-        canvas2d.addEventListener('mouseleave', () => {
-            document.getElementById('canvasHoverInfo').classList.add('hidden');
-        });
-
-        // Initialize Application on Load
+        // ============================================================================
+        // INITIALIZATION ON WINDOW LOAD
+        // ============================================================================
         window.onload = function() {
-            init3D();
-            toggleAutoB();
+            // 1. Initialize State Inputs
+            syncInputsFromState();
+
+            // 2. Initialize 2D Blueprint Engine
             resize2DCanvas();
-            updateAll();
+
+            // 3. Initialize 3D Engine
+            init3D();
         };
     </script>
 </body>
