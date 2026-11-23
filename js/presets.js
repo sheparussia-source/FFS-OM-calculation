@@ -32,7 +32,7 @@
     S1: true, S2: false, S3: false, S2off: 12, S3off: 0,
     symMode: 'face_back', symMargin: 15, showZones: true, mirror2d: false,
     embOn: false, embW: 62, embAlign: 'left', E: [null, null, null, null, null],
-    perfOn: false, perfW: 25, P: [null, null, null, null],
+    perfOn: false, perfW: 25, perfAlign: 'left', P: [null, null, null, null],
     cutExtOn: false, C1: 50, D1: 80, cutExtPat: '3x6',
     cutIntOn: false, C2: 750, D2: 250, cutIntPat: '3x6',
     fgOn: false, F: 820, G: 200,
@@ -53,7 +53,7 @@
       'pmW', 'pmH', 'pmX', 'pmY'];
     const boolKeys = ['autoB', 't1InB3', 'S1', 'S2', 'S3', 'showZones', 'mirror2d',
       'embOn', 'perfOn', 'cutExtOn', 'cutIntOn', 'fgOn', 'pmOn'];
-    const strKeys = ['symMode', 'embAlign', 'cutExtPat', 'cutIntPat', 'pmColor', 'scheme'];
+    const strKeys = ['symMode', 'embAlign', 'perfAlign', 'cutExtPat', 'cutIntPat', 'pmColor', 'scheme'];
 
     numKeys.forEach(k => {
       if (typeof raw[k] === 'number' && Number.isFinite(raw[k])) base[k] = raw[k];
@@ -65,8 +65,9 @@
       if (typeof raw[k] === 'string' && raw[k].length) base[k] = raw[k];
     });
 
-    if (!['face_back', 'face_channel', 'off'].includes(base.symMode)) base.symMode = 'face_back';
+    if (!['face_back', 'off'].includes(base.symMode)) base.symMode = 'face_back';
     if (!['left', 'center'].includes(base.embAlign)) base.embAlign = 'left';
+    if (!['left', 'center'].includes(base.perfAlign)) base.perfAlign = 'left';
     if (!['A1', 'A2'].includes(base.scheme)) base.scheme = 'A1';
 
     if (Array.isArray(raw.E)) {

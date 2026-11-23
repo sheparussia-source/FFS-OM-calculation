@@ -149,7 +149,7 @@
           ctx2d.fillRect(r.x, oy, r.w, webH);
         });
       }
-      if (S.T2 > 0 && S.symMode !== 'face_channel') {
+      if (S.T2 > 0) {
         const r = rectX(g.s1L, g.s1L + S.T2);
         ctx2d.fillStyle = 'rgba(148,163,184,0.18)';
         ctx2d.fillRect(r.x, oy, r.w, webH);
@@ -219,7 +219,8 @@
     if (S.perfOn) {
       S.P.forEach((val, idx) => {
         if (val === null) return;
-        const r = rectX(val - S.perfW / 2, val + S.perfW / 2);
+        const pst = FFS.getStripBounds(val, S.perfW, S.perfAlign || 'left');
+        const r = rectX(pst.left, pst.right);
         ctx2d.save();
         ctx2d.fillStyle = 'rgba(37,99,235,0.11)';
         ctx2d.fillRect(r.x, oy, r.w, webH);

@@ -212,6 +212,7 @@
 
     $('in-perfOn').checked = S.perfOn;
     $('in-perfW').value = S.perfW;
+    $('in-perfAlign').value = S.perfAlign || 'left';
     for (let i = 0; i < 4; i++) $('in-P' + (i + 1)).value = S.P[i] ?? '';
 
     $('in-cutExtOn').checked = S.cutExtOn;
@@ -365,7 +366,8 @@
       for (let i = 0; i < 5; i++) S.E[i] = readOptNum('in-E' + (i + 1));
 
       S.perfOn = $('in-perfOn').checked;
-      S.perfW = readNum('in-perfW', 25, 5, 150);
+      S.perfW = readNum('in-perfW', 25, 5, 200);
+      S.perfAlign = $('in-perfAlign').value;
       for (let i = 0; i < 4; i++) S.P[i] = readOptNum('in-P' + (i + 1));
 
       S.cutExtOn = $('in-cutExtOn').checked;

@@ -105,55 +105,6 @@
             text: ok ? '✓ Совпадают' : `Δ ${d13}/${d24} мм`
           });
         }
-      } else if (st.symMode === 'face_channel') {
-        const faceStrips = active.filter(o => o.b.center >= g.s4 && o.b.center <= g.s5);
-        if (faceStrips.length >= 2) {
-          const a = faceStrips[0], b = faceStrips[faceStrips.length - 1];
-          const gapL = Math.round((a.b.left - g.s4) * 10) / 10;
-          const gapR = Math.round((g.s5 - b.b.right) * 10) / 10;
-          const delta = Math.round((gapL - gapR) * 10) / 10;
-          rows.push({
-            label: `Лицо B1 (E${a.i + 1}↔E${b.i + 1})`,
-            status: Math.abs(delta) <= 2 ? 'ok' : 'err',
-            text: Math.abs(delta) <= 2 ? `✓ OK (${gapL}/${gapR} мм)` : `Δ ${delta > 0 ? '+' : ''}${delta} мм (${gapL}/${gapR})`
-          });
-        } else if (faceStrips.length === 1) {
-          const d = Math.round((faceStrips[0].b.center - g.xCenter) * 10) / 10;
-          rows.push({
-            label: `Лицо B1 (E${faceStrips[0].i + 1})`,
-            status: Math.abs(d) <= 2 ? 'ok' : 'warn',
-            text: Math.abs(d) <= 2 ? '✓ По оси' : `Сдвиг ${d > 0 ? '+' : ''}${d} мм`
-          });
-        }
-
-        if (g.backOverlap > 0.5) {
-          const chStrips = active.filter(o => o.b.center >= g.seamS1 - 5 && o.b.center <= g.s8 + 5);
-          if (chStrips.length) {
-            const ch = chStrips[0];
-            const gapS1 = Math.round((ch.b.left - g.seamS1) * 10) / 10;
-            const gapS3 = Math.round((g.s8 - ch.b.right) * 10) / 10;
-            const ok = gapS1 >= 2 && gapS3 >= 2 && Math.abs(gapS1 - gapS3) <= 2;
-            const inside = gapS1 >= 0 && gapS3 >= 0;
-            rows.push({
-              label: `Канал S1–S3 (E${ch.i + 1})`,
-              status: ok ? 'ok' : (inside ? 'warn' : 'err'),
-              text: ok ? `✓ Центр (${gapS1}/${gapS3} мм)` : (inside ? `Зазоры ${gapS1}/${gapS3} мм` : 'Наезд на шов!')
-            });
-          } else {
-            rows.push({ label: 'Канал S1–S3', status: 'muted', text: 'Полоса не задана' });
-          }
-        }
-
-        const b3Strips = active.filter(o => o.b.center >= g.s1L && o.b.center <= g.s2);
-        if (b3Strips.length) {
-          const b3s = b3Strips[0];
-          const fromS1 = Math.round((b3s.b.left - g.s1L) * 10) / 10;
-          rows.push({
-            label: `Тыл B3 (E${b3s.i + 1})`,
-            status: fromS1 >= 5 ? 'ok' : 'warn',
-            text: `От S1': ${fromS1} мм`
-          });
-        }
       } else if (active.length) {
         rows.push({ label: 'Симметрия тиснения', status: 'muted', text: 'Не требуется' });
       }
@@ -162,7 +113,6 @@
       active.forEach(item => {
         const b = item.b;
         const name = `E${item.i + 1}`;
-        const isInChannel = g.backOverlap > 0.5 && b.left >= g.seamS1 && b.right <= g.s8;
 
         if (b.left < 0 || b.right > st.B) {
           rows.push({ label: `${name} край полотна`, status: 'err', text: 'Вылет за B!' });
@@ -184,20 +134,35 @@
         }
         if (b.left < g.s1L || b.right > g.s8) {
           rows.push({ label: `${name} ↔ Кромка T`, status: 'err', text: 'Наезд на T1/T2!' });
-        } else if (st.symMode !== 'face_channel' && b.left < g.s1L + st.T2) {
+        } else if (b.left < g.s1L + st.T2) {
           const ov = Math.round((g.s1L + st.T2 - b.left) * 10) / 10;
           rows.push({ label: `${name} ↔ Подгиб T2`, status: 'warn', text: `Заход ${ov} мм` });
         }
-        if (st.symMode !== 'face_channel' && g.backOverlap > 0.5 && b.right > g.seamS1 && b.left < g.s8 && !isInChannel) {
-          rows.push({ label: `${name} ↔ Шов S1`, status: 'warn', text: 'Пересекает S1' });
+        if (g.backOverlap > 0.5 && b.right > g.seamS1 && b.left < g.s8) {
+          if (b.left < g.seamS1) {
+            rows.push({ label: `${name} ↔ Шов S1`, status: 'err', text: 'Пересекает шов S1!' });
+          } else {
+            rows.push({ label: `${name} ↔ Канал S1–S3`, status: 'warn', text: 'Внутри канала S1–S3' });
+          }
         }
       });
     }
 
     if (st.perfOn) {
+      const pAlign = st.perfAlign || 'left';
+      st.P.forEach((v, i) => {
+        if (v === null) return;
+        const b = FFS.getStripBounds(v, st.perfW, pAlign);
+        if (b.left < 0 || b.right > st.B) {
+          rows.push({ label: `P${i + 1} край полотна`, status: 'err', text: 'Вылет за B!' });
+        }
+      });
+
       [[0, 1], [2, 3]].forEach(([i, j]) => {
         if (st.P[i] !== null && st.P[j] !== null) {
-          const delta = Math.round(((st.P[j] - g.xCenter) - (g.xCenter - st.P[i])) * 10) / 10;
+          const bi = FFS.getStripBounds(st.P[i], st.perfW, pAlign);
+          const bj = FFS.getStripBounds(st.P[j], st.perfW, pAlign);
+          const delta = Math.round(((bj.center - g.xCenter) - (g.xCenter - bi.center)) * 10) / 10;
           rows.push({
             label: `Перф. P${i + 1}↔P${j + 1}`,
             status: Math.abs(delta) <= 2 ? 'ok' : (st.symMode !== 'off' ? 'err' : 'muted'),
@@ -221,14 +186,7 @@
     if (!st.embOn) st.embOn = true;
 
     let e1L, e2L, e3L, e4L;
-    if (mode === 'gusset' && st.symMode === 'face_channel' && g.backOverlap > 0.5) {
-      const m = Math.min(st.symMargin, maxFaceMargin);
-      if (st.symMargin > maxFaceMargin) FFS.ui.symNote = `Отступ ограничен до ${m} мм (ширина B1)`;
-      e1L = st.E[0] !== null ? FFS.getStripBounds(st.E[0], W, st.embAlign).left : (g.s1L + 22);
-      e2L = g.s4 + m;
-      e3L = g.s5 - m - W;
-      e4L = (g.seamS1 + g.s8) / 2 - W / 2;
-    } else if (mode === 'gusset') {
+    if (mode === 'gusset') {
       const m = Math.min(st.symMargin, maxFaceMargin);
       if (st.symMargin > maxFaceMargin) FFS.ui.symNote = `Отступ ограничен до ${m} мм (ширина B1)`;
       e1L = g.s2 - m - W;
@@ -266,11 +224,27 @@
   FFS.autoFixPerfSymmetry = function () {
     const st = FFS.state;
     const g = FFS.getGeom(st);
-    [[0, 1], [2, 3]].forEach(([i, j]) => {
-      if (st.P[i] !== null) {
-        st.P[j] = Math.round(clamp(2 * g.xCenter - st.P[i], st.T1, st.B - st.T2));
-      }
-    });
+    const W = st.perfW;
+    const pAlign = st.perfAlign || 'left';
+    const shift = pAlign === 'center' ? W / 2 : 0;
+    const lim = leftVal => Math.round(clamp(leftVal, 0, Math.max(0, st.B - W)) + shift);
+
+    if (st.P[0] === null && st.P[1] === null) {
+      st.perfOn = true;
+      const cL = g.s2 + st.B2 / 2;
+      const cR = g.s5 + st.B2 / 2;
+      st.P[0] = lim(cL - W / 2);
+      st.P[1] = lim(cR - W / 2);
+    } else {
+      [[0, 1], [2, 3]].forEach(([i, j]) => {
+        if (st.P[i] !== null) {
+          const ci = FFS.getStripBounds(st.P[i], W, pAlign).center;
+          const cj = 2 * g.xCenter - ci;
+          st.P[j] = lim(cj - W / 2);
+        }
+      });
+    }
+
     if (typeof FFS.syncStateToInputs === 'function') FFS.syncStateToInputs();
     if (typeof FFS.updateAll === 'function') FFS.updateAll(false);
   };

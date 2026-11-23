@@ -134,9 +134,8 @@
         <div class="card-hdr"><span>Контроль симметрии и коллизий</span><span class="card-tag">Режим</span></div>
         <div class="field mb-7">
           <select id="in-symMode">
-            <option value="face_back">Лицо = Тыл (один шов S1)</option>
-            <option value="face_channel">Симметрия лица + канал S1–S3</option>
-            <option value="off">Не требуется (только коллизии)</option>
+            <option value="face_back">Симметрия (Лицо = Тыл)</option>
+            <option value="off">Без симметрии (только коллизии)</option>
           </select>
         </div>
         <div class="sym-list" id="sym-list"></div>
@@ -150,7 +149,7 @@
           </div>
         </div>
         <div class="grid-2">
-          <button class="btn btn-primary" onclick="FFS.autoFixSymmetry('gusset')" title="Выставить тиснение симметрично с заданным отступом от фальцев (для выбранного режима)">Авто: У фальцев</button>
+          <button class="btn btn-primary" onclick="FFS.autoFixSymmetry('gusset')" title="Выставить E1–E4 симметрично с заданным отступом от фальцев (Лицо = Тыл)">Авто: У фальцев</button>
           <button class="btn btn-soft" onclick="FFS.autoFixSymmetry('fromE1')" title="Выровнять E1–E4 от текущего E1 по правилу Лицо = Тыл без перекрытия полос">Авто: От E1</button>
         </div>
       </div>
@@ -195,7 +194,16 @@
         <div class="card-hdr">
           <label class="chk-row"><input type="checkbox" id="in-perfOn" /> Перфорация иглами (P1–P4)</label>
         </div>
-        <div class="field mb-6"><label>Ширина полосы перфорации (мм)</label><input type="number" id="in-perfW" min="5" max="150" /></div>
+        <div class="grid-2 mb-6">
+          <div class="field"><label>Ширина полосы (мм)</label><input type="number" id="in-perfW" min="5" max="200" /></div>
+          <div class="field">
+            <label>Привязка координат</label>
+            <select id="in-perfAlign">
+              <option value="left">От начала (край T1)</option>
+              <option value="center">По центру полосы</option>
+            </select>
+          </div>
+        </div>
         <div class="grid-2">
           <div class="field"><label>P1</label><input type="number" id="in-P1" min="0" placeholder="—" /></div>
           <div class="field"><label>P2</label><input type="number" id="in-P2" min="0" placeholder="—" /></div>

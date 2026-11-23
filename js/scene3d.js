@@ -221,7 +221,8 @@
     if (S.perfOn) {
       S.P.forEach(v => {
         if (v === null) return;
-        const x0 = sx(v - S.perfW / 2), w = sx(S.perfW);
+        const pst = FFS.getStripBounds(v, S.perfW, S.perfAlign || 'left');
+        const x0 = sx(pst.left), w = sx(S.perfW);
         g2.fillStyle = 'rgba(37,99,235,0.14)';
         g2.fillRect(x0, 0, w, TH);
         g2.fillStyle = '#1d4ed8';
