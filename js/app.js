@@ -1,0 +1,314 @@
+(function (root) {
+  'use strict';
+
+  const FFS = root.FFS;
+  const $ = FFS.$;
+  const clamp = FFS.clamp;
+
+  FFS.switchTab = function (name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-body').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + name).classList.add('active');
+  };
+
+  FFS.setViewMode = function (mode) {
+    const ws = $('workspace');
+    ws.classList.remove('mode-2d', 'mode-3d');
+    if (mode === '2d') ws.classList.add('mode-2d');
+    if (mode === '3d') ws.classList.add('mode-3d');
+    ['split', '2d', '3d'].forEach(m => $('vm-' + m).classList.toggle('active', m === mode));
+    setTimeout(() => { FFS.resize2D(); FFS.resize3D(); }, 20);
+  };
+
+  FFS.applyPreset = function (key) {
+    FFS.state = JSON.parse(JSON.stringify(FFS.PRESETS[key]));
+    FFS.ui.symNote = '';
+    $('pre-tk').classList.toggle('active', key === 'tk03343');
+    $('pre-rl1').classList.toggle('active', key === 'rl1');
+    $('pre-rl2').classList.toggle('active', key === 'rl2');
+    $('pre-10401').classList.toggle('active', key === 'm10401');
+    FFS.syncStateToInputs();
+    FFS.reset2DView();
+    FFS.updateAll(true);
+  };
+
+  FFS.syncStateToInputs = function () {
+    const S = FFS.state;
+    $('in-A').value = S.A;
+    $('in-B').value = S.B;
+    $('in-autoB').checked = S.autoB;
+    $('in-B').disabled = S.autoB;
+    $('in-B1').value = S.B1;
+    $('in-B2').value = S.B2;
+    $('in-B2tolM').value = S.B2tolM;
+    $('in-B2tolP').value = S.B2tolP;
+    $('in-B3').value = S.B3;
+    $('in-B4').value = S.B4;
+    $('in-T1').value = S.T1;
+    $('in-T2').value = S.T2;
+    $('in-t1InB3').checked = S.t1InB3;
+    $('lbl-B3').textContent = S.t1InB3 ? `B3 (вкл. T1, чист. ${Math.max(0, S.B3 - S.T1)})` : 'B3 (Внешний клапан)';
+
+    $('in-symMode').value = S.symMode;
+    $('in-symMargin').value = S.symMargin;
+    $('in-zones').checked = S.showZones;
+    $('in-mirror2d').checked = S.mirror2d;
+
+    $('in-S1').checked = S.S1;
+    $('in-S2').checked = S.S2;
+    $('in-S3').checked = S.S3;
+    $('in-S2off').value = S.S2off;
+    $('in-S3off').value = S.S3off;
+
+    $('in-embOn').checked = S.embOn;
+    $('in-embW').value = S.embW;
+    $('in-embAlign').value = S.embAlign;
+    for (let i = 0; i < 5; i++) $('in-E' + (i + 1)).value = S.E[i] ?? '';
+
+    $('in-perfOn').checked = S.perfOn;
+    $('in-perfW').value = S.perfW;
+    for (let i = 0; i < 4; i++) $('in-P' + (i + 1)).value = S.P[i] ?? '';
+
+    $('in-cutExtOn').checked = S.cutExtOn;
+    $('in-C1').value = S.C1; $('in-D1').value = S.D1; $('in-cutExtPat').value = S.cutExtPat;
+    $('in-cutIntOn').checked = S.cutIntOn;
+    $('in-C2').value = S.C2; $('in-D2').value = S.D2; $('in-cutIntPat').value = S.cutIntPat;
+    $('in-fgOn').checked = S.fgOn;
+    $('in-F').value = S.F; $('in-G').value = S.G;
+
+    $('in-pmOn').checked = S.pmOn;
+    $('in-pmW').value = S.pmW; $('in-pmH').value = S.pmH;
+    $('in-pmX').value = S.pmX; $('in-pmY').value = S.pmY;
+    $('in-pmColor').value = S.pmColor;
+
+    $('in-scheme').value = S.scheme;
+  };
+
+  function readNum(id, fallback, min, max) {
+    const v = parseFloat($(id).value);
+    return Number.isFinite(v) ? clamp(v, min, max) : fallback;
+  }
+
+  function readOptNum(id) {
+    const raw = $(id).value.trim();
+    if (raw === '') return null;
+    const v = parseFloat(raw);
+    return Number.isFinite(v) ? Math.max(0, v) : null;
+  }
+
+  FFS.updateFoldUI = function () {
+    const txt = Math.round(FFS.ui.foldPct) + '%';
+    $('fold-label').textContent = txt;
+    $('xz-pct').textContent = txt;
+    $('in-fold').value = FFS.ui.foldPct;
+  };
+
+  FFS.updateBadgesAndSummary = function () {
+    const S = FFS.state;
+    const g = FFS.getGeom(S);
+    const diff = Math.round((S.B - g.sumB) * 10) / 10;
+
+    const bb = $('badge-balance');
+    if (Math.abs(diff) < 0.5) {
+      bb.className = 'pill pill-ok';
+      bb.textContent = `✓ B: ${S.B} мм`;
+    } else {
+      bb.className = 'pill pill-err';
+      bb.textContent = `⚠ Невязка B: ${diff > 0 ? '+' : ''}${diff} мм`;
+    }
+
+    const bBack = $('badge-back');
+    const warn3d = $('warn-3d');
+    const errs3d = [];
+
+    if (S.B2 >= S.B1) errs3d.push(`Фальц B2 (${S.B2}) ≥ B1 (${S.B1}): самопересечение фальцев!`);
+    if (g.backOverlap < -0.5) errs3d.push(`Тыл не смыкается: разрыв ${Math.abs(Math.round(g.backOverlap))} мм (B3+B4 < B1)!`);
+    if (g.b3Net > S.B1) errs3d.push(`Внешний клапан B3 (${g.b3Net}) шире рукава B1 (${S.B1})!`);
+    if (S.B4 > S.B1) errs3d.push(`Внутренний клапан B4 (${S.B4}) шире рукава B1 (${S.B1})!`);
+
+    if (errs3d.length) {
+      bBack.className = 'pill pill-err';
+      bBack.textContent = S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.round(g.backOverlap)} мм` : '⚠ Клапан > B1!');
+      warn3d.innerHTML = errs3d.join('<br>');
+      warn3d.style.display = 'block';
+    } else if (g.backOverlap > 0.5) {
+      bBack.className = 'pill pill-info';
+      bBack.textContent = `Канал S1–S3: +${Math.round(g.backOverlap)} мм`;
+      warn3d.style.display = 'none';
+    } else {
+      bBack.className = 'pill pill-ok';
+      bBack.textContent = '✓ Тыл и фальцы OK';
+      warn3d.style.display = 'none';
+    }
+
+    const tl = FFS.evalPolytexTooling(S);
+    const bt = $('badge-tooling');
+    bt.className = 'pill ' + tl.cls;
+    bt.textContent = tl.text;
+
+    $('geo-summary').innerHTML =
+      `Σ сегментов: <b>${g.sumB} мм</b> (B = ${S.B} мм)<br>` +
+      `Ось лица B1: <b>${g.xCenter.toFixed(1)} мм</b> • B1: <b>[${g.s4}..${g.s5}]</b><br>` +
+      `Внеш. клапан чист.: <b>${g.b3Net} мм</b>` + (S.t1InB3 ? ' (T1 внутри B3)' : ' (T1 отдельно)') + '<br>' +
+      `Шов S1: <b>${g.seamS1} мм</b>` +
+      (g.backOverlap > 0 ? ` • Канал до S3 (${g.seamS3}): <b>${g.backOverlap} мм</b>` : '') + '<br>' +
+      `Оснастка: <b>${tl.detail}</b>`;
+
+    const symEl = $('sym-list');
+    const checks = FFS.analyzeEmbossingAndPerf(S);
+    if (!checks.length) {
+      symEl.innerHTML = '<div class="sym-row"><span class="sym-muted">Нет активного тиснения / перфорации</span></div>';
+    } else {
+      symEl.innerHTML = checks.map(c =>
+        `<div class="sym-row"><span>${c.label}</span><span class="sym-${c.status}">${c.text}</span></div>`
+      ).join('');
+    }
+
+  };
+
+  FFS.updateAll = function (reframeCamera) {
+    FFS.updateBadgesAndSummary();
+    FFS.draw2D();
+    FFS.update3DTexture();
+    FFS.update3DGeometry();
+    FFS.drawCrossSection();
+    if (reframeCamera) FFS.reframe3D();
+  };
+
+  function bindInputs() {
+    const onEdit = (isBlur) => {
+      const S = FFS.state;
+      const prevMaxDim = Math.max(S.A, S.B);
+      FFS.ui.symNote = '';
+
+      S.A = readNum('in-A', 700, 150, 2500);
+      S.autoB = $('in-autoB').checked;
+      $('in-B').disabled = S.autoB;
+      S.B1 = readNum('in-B1', 300, 80, 1500);
+      S.B2 = readNum('in-B2', 100, 10, 600);
+      S.B2tolM = -Math.abs(parseFloat($('in-B2tolM').value) || 0);
+      S.B2tolP = Math.abs(parseFloat($('in-B2tolP').value) || 0);
+      S.t1InB3 = $('in-t1InB3').checked;
+      S.T1 = readNum('in-T1', 8, 0, 150);
+      S.T2 = readNum('in-T2', 32, 0, 150);
+      S.B3 = readNum('in-B3', 150, S.t1InB3 ? S.T1 + 10 : 10, 1200);
+      S.B4 = readNum('in-B4', 150, 10, 1200);
+      $('lbl-B3').textContent = S.t1InB3 ? `B3 (вкл. T1, чист. ${Math.max(0, S.B3 - S.T1)})` : 'B3 (Внешний клапан)';
+
+      const g = FFS.getGeom(S);
+      if (S.autoB) {
+        S.B = Math.round(g.sumB);
+        $('in-B').value = S.B;
+      } else {
+        S.B = readNum('in-B', g.sumB, 200, 3000);
+      }
+
+      S.symMode = $('in-symMode').value;
+      S.symMargin = readNum('in-symMargin', 15, 0, 200);
+      S.showZones = $('in-zones').checked;
+      S.mirror2d = $('in-mirror2d').checked;
+
+      S.S1 = $('in-S1').checked;
+      S.S2 = $('in-S2').checked;
+      S.S3 = $('in-S3').checked;
+      S.S2off = parseFloat($('in-S2off').value) || 0;
+      S.S3off = parseFloat($('in-S3off').value) || 0;
+
+      S.embOn = $('in-embOn').checked;
+      S.embW = readNum('in-embW', 60, 5, 200);
+      S.embAlign = $('in-embAlign').value;
+      for (let i = 0; i < 5; i++) S.E[i] = readOptNum('in-E' + (i + 1));
+
+      S.perfOn = $('in-perfOn').checked;
+      S.perfW = readNum('in-perfW', 25, 5, 150);
+      for (let i = 0; i < 4; i++) S.P[i] = readOptNum('in-P' + (i + 1));
+
+      S.cutExtOn = $('in-cutExtOn').checked;
+      S.C1 = readNum('in-C1', 50, 0, S.B); S.D1 = readNum('in-D1', 70, 0, S.A);
+      S.cutExtPat = $('in-cutExtPat').value;
+      S.cutIntOn = $('in-cutIntOn').checked;
+      S.C2 = readNum('in-C2', 650, 0, S.B); S.D2 = readNum('in-D2', 250, 0, S.A);
+      S.cutIntPat = $('in-cutIntPat').value;
+      S.fgOn = $('in-fgOn').checked;
+      S.F = readNum('in-F', 700, 0, S.B); S.G = readNum('in-G', 200, 0, S.A);
+
+      S.pmOn = $('in-pmOn').checked;
+      S.pmW = readNum('in-pmW', 30, 2, 150); S.pmH = readNum('in-pmH', 15, 2, 150);
+      S.pmX = readNum('in-pmX', 50, 0, S.B); S.pmY = readNum('in-pmY', 20, 0, S.A);
+      S.pmColor = $('in-pmColor').value;
+
+      S.scheme = $('in-scheme').value;
+
+      if (isBlur) FFS.syncStateToInputs();
+      const scaleChanged = Math.abs(Math.max(S.A, S.B) - prevMaxDim) > 40;
+      FFS.updateAll(scaleChanged);
+    };
+
+    document.querySelectorAll('aside input, aside select, #in-zones, #in-mirror2d').forEach(el => {
+      el.addEventListener('input', () => onEdit(false));
+      el.addEventListener('change', () => onEdit(true));
+      el.addEventListener('blur', () => onEdit(true));
+    });
+
+    $('in-fold').addEventListener('input', e => {
+      FFS.ui.isPlaying = false;
+      FFS.ui.foldTarget = null;
+      $('btn-play').textContent = '▶';
+      FFS.ui.foldPct = parseFloat(e.target.value);
+      FFS.updateFoldUI();
+      FFS.update3DGeometry();
+      FFS.drawCrossSection();
+    });
+
+    $('in-xray').addEventListener('change', e => {
+      FFS.setXray(e.target.checked);
+    });
+  }
+
+  function initSplitter() {
+    const splitter = $('splitter');
+    const ws = $('workspace');
+    const p2 = $('pane-2d');
+    let active = false;
+
+    splitter.addEventListener('mousedown', e => {
+      e.preventDefault();
+      active = true;
+      splitter.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!active) return;
+      const rect = ws.getBoundingClientRect();
+      p2.style.width = clamp(((e.clientX - rect.left) / rect.width) * 100, 22, 78) + '%';
+      FFS.resize2D();
+      FFS.resize3D();
+    });
+    window.addEventListener('mouseup', () => {
+      if (!active) return;
+      active = false;
+      splitter.classList.remove('dragging');
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { FFS.resize2D(); FFS.resize3D(); });
+      ro.observe($('wrap-2d'));
+      ro.observe($('wrap-3d'));
+    } else {
+      window.addEventListener('resize', () => { FFS.resize2D(); FFS.resize3D(); });
+    }
+  }
+
+  // Boot sequence
+  FFS.init2DInteraction();
+  bindInputs();
+  initSplitter();
+  FFS.applyPreset('tk03343');
+  FFS.updateFoldUI();
+  FFS.loadThree(() => {
+    FFS.init3D();
+    FFS.resize3D();
+    FFS.updateAll(true);
+  });
+  setTimeout(() => { FFS.resize2D(); FFS.resize3D(); }, 50);
+})(window);
