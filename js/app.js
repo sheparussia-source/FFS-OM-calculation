@@ -181,8 +181,10 @@
     const S = FFS.state;
     $('in-A').value = S.A;
     $('in-B').value = S.B;
-    $('in-autoB').checked = S.autoB;
-    $('in-B').disabled = S.autoB;
+    $('in-autoB').checked = !!S.autoB;
+    $('in-B').disabled = !!S.autoB;
+    $('in-autoB4').checked = !!S.autoB4;
+    $('in-B4').disabled = !!S.autoB4;
     $('in-B1').value = S.B1;
     $('in-B2').value = S.B2;
     $('in-B2tolM').value = S.B2tolM;
@@ -228,6 +230,25 @@
     $('in-pmColor').value = S.pmColor;
 
     $('in-scheme').value = S.scheme;
+
+    $('in-transOn').checked = !!S.transOn;
+    $('in-topSeal').value = S.topSeal;
+    $('in-botSeal').value = S.botSeal;
+    $('in-deadZone').value = S.deadZone;
+
+    $('in-omShow2D').checked = !!S.omShow2D;
+    $('in-omShow3D').checked = !!S.omShow3D;
+    $('in-omHideLabels3D').checked = !!S.omHideLabels3D;
+    $('in-omOpacity2D').value = S.omOpacity2D;
+    $('lbl-omOp2D').textContent = Math.round(S.omOpacity2D) + '%';
+    $('in-omOpacity3D').value = S.omOpacity3D;
+    $('lbl-omOp3D').textContent = Math.round(S.omOpacity3D) + '%';
+    $('in-omFlipX').checked = !!S.omFlipX;
+    $('in-omRot180').checked = !!S.omRot180;
+    $('in-omCropL').value = S.omCropL;
+    $('in-omCropR').value = S.omCropR;
+    $('in-omCropT').value = S.omCropT;
+    $('in-omCropB').value = S.omCropB;
   };
 
   function readNum(id, fallback, min, max) {
@@ -267,6 +288,7 @@
     const warn3d = $('warn-3d');
     const errs3d = [];
 
+    if (S.B4 < 0) errs3d.push(`Не хватает ширины полотна B: расчётный B4 = ${S.B4} мм!`);
     if (S.B2 >= S.B1) errs3d.push(`Фальц B2 (${S.B2}) ≥ B1 (${S.B1}): самопересечение фальцев!`);
     if (g.backOverlap < -0.5) errs3d.push(`Тыл не смыкается: разрыв ${Math.abs(Math.round(g.backOverlap))} мм (B3+B4 < B1)!`);
     if (g.b3Net > S.B1) errs3d.push(`Внешний клапан B3 (${g.b3Net}) шире рукава B1 (${S.B1})!`);
@@ -274,7 +296,7 @@
 
     if (errs3d.length) {
       bBack.className = 'pill pill-err';
-      bBack.textContent = S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.round(g.backOverlap)} мм` : '⚠ Клапан > B1!');
+      bBack.textContent = S.B4 < 0 ? `⚠ B4 = ${S.B4} мм!` : (S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.round(g.backOverlap)} мм` : '⚠ Клапан > B1!'));
       warn3d.innerHTML = errs3d.join('<br>');
       warn3d.style.display = 'block';
     } else if (g.backOverlap > 0.5) {
@@ -295,9 +317,10 @@
     $('geo-summary').innerHTML =
       `Σ сегментов: <b>${g.sumB} мм</b> (B = ${S.B} мм)<br>` +
       `Ось лица B1: <b>${g.xCenter.toFixed(1)} мм</b> • B1: <b>[${g.s4}..${g.s5}]</b><br>` +
-      `Внеш. клапан чист.: <b>${g.b3Net} мм</b>` + (S.t1InB3 ? ' (T1 внутри B3)' : ' (T1 отдельно)') + '<br>' +
+      `Клапаны: внеш. <b>${g.b3Net}</b>` + (S.t1InB3 ? ' (T1 в B3)' : '') + ` • внутр. B4: <b>${S.B4} мм</b>` + (S.autoB4 ? ' (авто)' : '') + '<br>' +
       `Шов S1: <b>${g.seamS1} мм</b>` +
       (g.backOverlap > 0 ? ` • Канал до S3 (${g.seamS3}): <b>${g.backOverlap} мм</b>` : '') + '<br>' +
+      (S.transOn ? `Раб. высота A<sub>эфф</sub>: <b>${FFS.getTransverseGeom(S).effA} мм</b> (швы ${S.topSeal}/${S.botSeal}, м/з ±${S.deadZone})<br>` : '') +
       `Оснастка: <b>${tl.detail}</b>`;
 
     const symEl = $('sym-list');
@@ -314,6 +337,7 @@
 
   FFS.updateAll = function (reframeCamera) {
     FFS.updateBadgesAndSummary();
+    if (typeof FFS.updateArtworkUI === 'function') FFS.updateArtworkUI();
     FFS.draw2D();
     FFS.update3DTexture();
     FFS.update3DGeometry();
@@ -322,14 +346,30 @@
   };
 
   function bindInputs() {
-    const onEdit = (isBlur) => {
+    const onEdit = (isBlur, ev) => {
       const S = FFS.state;
       const prevMaxDim = Math.max(S.A, S.B);
       FFS.ui.symNote = '';
 
-      S.A = readNum('in-A', 700, 150, 2500);
-      S.autoB = $('in-autoB').checked;
+      const srcId = ev && ev.target ? ev.target.id : '';
+      let autoB = $('in-autoB').checked;
+      let autoB4 = $('in-autoB4').checked;
+      if (srcId === 'in-autoB4' && autoB4) {
+        autoB = false;
+        $('in-autoB').checked = false;
+      } else if (srcId === 'in-autoB' && autoB) {
+        autoB4 = false;
+        $('in-autoB4').checked = false;
+      } else if (autoB && autoB4) {
+        autoB = false;
+        $('in-autoB').checked = false;
+      }
+      S.autoB = autoB;
+      S.autoB4 = autoB4;
       $('in-B').disabled = S.autoB;
+      $('in-B4').disabled = S.autoB4;
+
+      S.A = readNum('in-A', 700, 150, 2500);
       S.B1 = readNum('in-B1', 300, 80, 1500);
       S.B2 = readNum('in-B2', 100, 10, 600);
       S.B2tolM = -Math.abs(parseFloat($('in-B2tolM').value) || 0);
@@ -338,15 +378,19 @@
       S.T1 = readNum('in-T1', 8, 0, 150);
       S.T2 = readNum('in-T2', 32, 0, 150);
       S.B3 = readNum('in-B3', 150, S.t1InB3 ? S.T1 + 10 : 10, 1200);
-      S.B4 = readNum('in-B4', 150, 10, 1200);
       $('lbl-B3').textContent = S.t1InB3 ? `B3 (вкл. T1, чист. ${Math.max(0, S.B3 - S.T1)})` : 'B3 (Внешний клапан)';
 
-      const g = FFS.getGeom(S);
-      if (S.autoB) {
-        S.B = Math.round(g.sumB);
+      if (S.autoB4) {
+        S.B = readNum('in-B', S.B, 200, 3000);
+        S.B4 = Math.round(FFS.calcAutoB4(S));
+        $('in-B4').value = S.B4;
+      } else if (S.autoB) {
+        S.B4 = readNum('in-B4', 150, 0, 1200);
+        S.B = Math.round(FFS.getGeom(S).sumB);
         $('in-B').value = S.B;
       } else {
-        S.B = readNum('in-B', g.sumB, 200, 3000);
+        S.B = readNum('in-B', S.B, 200, 3000);
+        S.B4 = readNum('in-B4', 150, 0, 1200);
       }
 
       S.symMode = $('in-symMode').value;
@@ -386,15 +430,34 @@
 
       S.scheme = $('in-scheme').value;
 
+      S.transOn = $('in-transOn').checked;
+      S.topSeal = readNum('in-topSeal', 20, 0, 150);
+      S.botSeal = readNum('in-botSeal', 20, 0, 150);
+      S.deadZone = readNum('in-deadZone', 10, 0, 100);
+
+      S.omShow2D = $('in-omShow2D').checked;
+      S.omShow3D = $('in-omShow3D').checked;
+      S.omHideLabels3D = $('in-omHideLabels3D').checked;
+      S.omOpacity2D = readNum('in-omOpacity2D', 55, 0, 100);
+      $('lbl-omOp2D').textContent = Math.round(S.omOpacity2D) + '%';
+      S.omOpacity3D = readNum('in-omOpacity3D', 100, 0, 100);
+      $('lbl-omOp3D').textContent = Math.round(S.omOpacity3D) + '%';
+      S.omFlipX = $('in-omFlipX').checked;
+      S.omRot180 = $('in-omRot180').checked;
+      S.omCropL = readNum('in-omCropL', 0, 0, 49);
+      S.omCropR = readNum('in-omCropR', 0, 0, 49);
+      S.omCropT = readNum('in-omCropT', 0, 0, 49);
+      S.omCropB = readNum('in-omCropB', 0, 0, 49);
+
       if (isBlur) FFS.syncStateToInputs();
       const scaleChanged = Math.abs(Math.max(S.A, S.B) - prevMaxDim) > 40;
       FFS.updateAll(scaleChanged);
     };
 
-    document.querySelectorAll('aside input, aside select, #in-zones, #in-mirror2d').forEach(el => {
-      el.addEventListener('input', () => onEdit(false));
-      el.addEventListener('change', () => onEdit(true));
-      el.addEventListener('blur', () => onEdit(true));
+    document.querySelectorAll('aside input:not([type="file"]), aside select, #in-zones, #in-mirror2d').forEach(el => {
+      el.addEventListener('input', ev => onEdit(false, ev));
+      el.addEventListener('change', ev => onEdit(true, ev));
+      el.addEventListener('blur', ev => onEdit(true, ev));
     });
 
     $('in-fold').addEventListener('input', e => {
@@ -482,6 +545,7 @@
 
   // Boot sequence
   FFS.init2DInteraction();
+  FFS.initArtworkEvents();
   bindInputs();
   initSplitter();
   FFS.loadDefaultTemplate();

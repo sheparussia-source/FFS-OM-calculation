@@ -49,6 +49,7 @@
     <div class="tabs">
       <button class="tab-btn active" onclick="FFS.switchTab('geo', this)">Геометрия</button>
       <button class="tab-btn" onclick="FFS.switchTab('proc', this)">Швы и обработка</button>
+      <button class="tab-btn" onclick="FFS.switchTab('om', this)">Макет ОМ</button>
     </div>
 
     <!-- TAB 1: GEOMETRY -->
@@ -64,7 +65,7 @@
             <label>
               <span>B (Ширина)</span>
               <span class="auto-chk">
-                <input type="checkbox" id="in-autoB" checked /> Авто
+                <input type="checkbox" id="in-autoB" /> Авто
               </span>
             </label>
             <input type="number" id="in-B" min="200" max="3000" step="1" />
@@ -98,7 +99,7 @@
       <div class="card">
         <div class="card-hdr">
           <span>Клапаны и сварные кромки</span>
-          <label class="chk-row chk-accent" title="Если включено, размер B3 считается от самого края полотна и включает кромку T1 (как на макетах с каналом S1–S3)">
+          <label class="chk-row chk-accent" title="Если включено, размер B3 считается от самого края полотна и включает кромку T1 (как на большинстве ОМ)">
             <input type="checkbox" id="in-t1InB3" /> T1 входит в B3
           </label>
         </div>
@@ -108,8 +109,13 @@
             <input type="number" id="in-B3" min="10" max="1200" step="1" />
           </div>
           <div class="field">
-            <label>B4 (Внутр. клапан)</label>
-            <input type="number" id="in-B4" min="10" max="1200" step="1" />
+            <label>
+              <span>B4 (Внутр. клапан)</span>
+              <span class="auto-chk" title="Авторасчёт остатка ширины полотна B − (T1 + B3чист + 2·B2 + B1 + T2), как в ТЗ (Форма №19)">
+                <input type="checkbox" id="in-autoB4" checked /> Авто
+              </span>
+            </label>
+            <input type="number" id="in-B4" min="0" max="1200" step="1" />
           </div>
           <div class="field">
             <label>T1 (Наружн. кромка)</label>
@@ -164,6 +170,18 @@
         <div class="grid-2">
           <div class="field"><label>Сдвиг S2 от S1</label><input type="number" id="in-S2off" step="1" /></div>
           <div class="field"><label>Сдвиг S3 (0 = край B4)</label><input type="number" id="in-S3off" step="1" /></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <label class="chk-row"><input type="checkbox" id="in-transOn" /> Поперечные швы и мёртвые зоны</label>
+          <span class="card-tag">по A</span>
+        </div>
+        <div class="grid-3">
+          <div class="field"><label>Шов верх (мм)</label><input type="number" id="in-topSeal" min="0" max="150" step="1" /></div>
+          <div class="field"><label>Шов низ (мм)</label><input type="number" id="in-botSeal" min="0" max="150" step="1" /></div>
+          <div class="field"><label>Мёртв. зона</label><input type="number" id="in-deadZone" min="0" max="100" step="1" /></div>
         </div>
       </div>
 
@@ -253,6 +271,60 @@
       </div>
     </div>
 
+    <!-- TAB 3: OM ARTWORK OVERLAY -->
+    <div class="tab-body" id="tab-om">
+      <div class="card">
+        <div class="card-hdr"><span>Загрузка оригинал-макета (ОМ)</span><span class="card-tag">PNG / JPG</span></div>
+        <div class="om-dropzone" id="om-dropzone" onclick="FFS.triggerUploadOM()">
+          <div class="om-drop-title" id="om-file-label">Нажмите или перетащите картинку ОМ</div>
+          <div class="om-drop-sub" id="om-file-meta">PNG, JPG, WebP • Совмещение на 2D и 3D</div>
+        </div>
+        <input type="file" id="in-om-file" accept="image/png,image/jpeg,image/webp" class="hidden-file" />
+        <div class="grid-2" style="margin-top:7px;">
+          <button class="btn btn-primary" id="btn-om-crop" onclick="FFS.openCropModal()" disabled>Выделить рамку B×A</button>
+          <button class="btn" id="btn-om-clear" onclick="FFS.clearArtwork()" disabled>Убрать макет</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span>Отображение на 2D и 3D</span><span class="card-tag">Слои</span></div>
+        <div class="grid-2 mb-7">
+          <label class="chk-row"><input type="checkbox" id="in-omShow2D" checked /> Показать на 2D</label>
+          <label class="chk-row"><input type="checkbox" id="in-omShow3D" checked /> Натянуть на 3D</label>
+        </div>
+        <label class="chk-row mb-8" title="Скрыть дежурную надпись «ЛИЦО» и фоновые заливки зон на 3D-мешке при наложенном ОМ">
+          <input type="checkbox" id="in-omHideLabels3D" checked /> Скрыть фон/«ЛИЦО» на 3D
+        </label>
+        <div class="field mb-7">
+          <label><span>Прозрачность ОМ на 2D</span><span id="lbl-omOp2D" class="mono-val">55%</span></label>
+          <input type="range" id="in-omOpacity2D" min="0" max="100" step="1" value="55" />
+        </div>
+        <div class="field">
+          <label><span>Прозрачность ОМ на 3D</span><span id="lbl-omOp3D" class="mono-val">100%</span></label>
+          <input type="range" id="in-omOpacity3D" min="0" max="100" step="1" value="100" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span>Ориентация и подгонка краёв</span><span class="card-tag">Обрезка %</span></div>
+        <div class="grid-2 mb-7">
+          <label class="chk-row" title="Включите, если на загруженной картинке ОМ кромка T1 находится справа (например, макеты под R2)">
+            <input type="checkbox" id="in-omFlipX" /> ОМ зеркальный (T1 справа)
+          </label>
+          <label class="chk-row" title="Повернуть картинку ОМ на 180°">
+            <input type="checkbox" id="in-omRot180" /> Повернуть 180°
+          </label>
+        </div>
+        <div class="grid-2 mb-7">
+          <div class="field"><label>Обрезка лево (%)</label><input type="number" id="in-omCropL" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка право (%)</label><input type="number" id="in-omCropR" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка верх (%)</label><input type="number" id="in-omCropT" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка низ (%)</label><input type="number" id="in-omCropB" min="0" max="49" step="0.1" /></div>
+        </div>
+        <div class="geo-summary mb-6" id="om-ratio-info">Загрузите изображение ОМ для контроля пропорций B/A.</div>
+        <button class="btn btn-soft" style="width:100%;" onclick="FFS.resetArtworkCrop()">Сбросить обрезку (0%)</button>
+      </div>
+    </div>
   </aside>
 
   <!-- WORKSPACE 50 / 50 -->
@@ -265,6 +337,7 @@
           <span class="pane-hint">Клик по размеру/E/P = ввод • Перетаскивание мышью • Колесо = зум</span>
         </div>
         <div class="pane-actions">
+          <button class="btn btn-soft btn-xs" id="btn-quick-om" onclick="FFS.triggerUploadOM()" title="Загрузить картинку оригинал-макета (PNG/JPG) на 2D и 3D">+ Макет ОМ</button>
           <label class="chk-row chk-sm" title="Отобразить чертёж зеркально: кромка T1 справа (для макетов под намотку R2)">
             <input type="checkbox" id="in-mirror2d" /> Зеркало (T1 справа)
           </label>
@@ -345,12 +418,34 @@
   </div>
 </div>
 
+<!-- INTERACTIVE OM CROP MODAL -->
+<div class="modal-backdrop" id="crop-modal" aria-hidden="true">
+  <div class="modal-card modal-crop" role="dialog" aria-modal="true" aria-labelledby="crop-modal-title">
+    <div class="modal-hdr">
+      <span id="crop-modal-title">Выделение рамки полотна (B × A) на макете ОМ</span>
+      <button class="modal-close" onclick="FFS.closeCropModal()" title="Закрыть">✕</button>
+    </div>
+    <div class="crop-stage-wrap">
+      <canvas id="crop-canvas"></canvas>
+    </div>
+    <div class="crop-bar">
+      <div class="crop-stats" id="crop-stats">Потяните за границы или углы синей рамки, чтобы совместить с границами полотна B × A.</div>
+      <div class="crop-btns">
+        <button class="btn" onclick="FFS.resetCropDraft()">Весь файл (0%)</button>
+        <button class="btn" onclick="FFS.closeCropModal()">Отмена</button>
+        <button class="btn btn-primary" onclick="FFS.applyCropModal()">Применить рамку</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST NOTIFICATION -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <!-- Classic script tags: works BOTH locally (file://) and on GitHub Pages -->
 <script src="js/presets.js"></script>
 <script src="js/geometry.js"></script>
+<script src="js/artwork.js"></script>
 <script src="js/canvas2d.js"></script>
 <script src="js/scene3d.js"></script>
 <script src="js/three-loader.js"></script>

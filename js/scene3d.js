@@ -159,47 +159,99 @@
     const sx = mm => (mm / Math.max(S.B, 1)) * TW;
     const sy = mm => (mm / Math.max(S.A, 1)) * TH;
 
-    const zones = [
-      { a: 0, b: gm.s1L, c: '#e2e8f0' },
-      { a: gm.s1L, b: gm.s2, c: '#fff7ed' },
-      { a: gm.s2, b: gm.s4, c: '#ecfdf5' },
-      { a: gm.s4, b: gm.s5, c: '#ffffff' },
-      { a: gm.s5, b: gm.s7, c: '#ecfdf5' },
-      { a: gm.s7, b: gm.s8, c: '#f5f3ff' },
-      { a: gm.s8, b: gm.sumB, c: '#e2e8f0' }
-    ];
-    zones.forEach(z => {
-      g2.fillStyle = z.c;
-      g2.fillRect(sx(z.a), 0, sx(z.b - z.a), TH);
-    });
+    const hasOm3D = Boolean(S.omShow3D && typeof FFS.hasArtwork === 'function' && FFS.hasArtwork());
+    const hideBase = hasOm3D && Boolean(S.omHideLabels3D);
+
+    if (!hideBase) {
+      const zones = [
+        { a: 0, b: gm.s1L, c: '#e2e8f0' },
+        { a: gm.s1L, b: gm.s2, c: '#fff7ed' },
+        { a: gm.s2, b: gm.s4, c: '#ecfdf5' },
+        { a: gm.s4, b: gm.s5, c: '#ffffff' },
+        { a: gm.s5, b: gm.s7, c: '#ecfdf5' },
+        { a: gm.s7, b: gm.s8, c: '#f5f3ff' },
+        { a: gm.s8, b: gm.sumB, c: '#e2e8f0' }
+      ];
+      zones.forEach(z => {
+        g2.fillStyle = z.c;
+        g2.fillRect(sx(z.a), 0, sx(z.b - z.a), TH);
+      });
+    } else {
+      g2.fillStyle = '#ffffff';
+      g2.fillRect(0, 0, TW, TH);
+    }
+
+    if (hasOm3D) {
+      FFS.drawArtworkOnCtx(g2, 0, 0, TW, TH, Boolean(S.omFlipX), Boolean(S.omRot180), (S.omOpacity3D ?? 100) / 100, S);
+    }
 
     [gm.s2, gm.s2 + S.B2 / 2, gm.s4, gm.s5, gm.s5 + S.B2 / 2, gm.s7].forEach((mm, i) => {
       g2.save();
-      g2.strokeStyle = (i === 1 || i === 4) ? '#10b981' : '#94a3b8';
+      g2.strokeStyle = (i === 1 || i === 4) ? 'rgba(16,185,129,0.75)' : 'rgba(148,163,184,0.75)';
       g2.lineWidth = (i === 1 || i === 4) ? 4 : 2;
       g2.setLineDash([14, 10]);
       g2.beginPath(); g2.moveTo(sx(mm), 0); g2.lineTo(sx(mm), TH); g2.stroke();
       g2.restore();
     });
 
-    // Aspect-ratio compensated "ЛИЦО" graphic sized strictly to fit inside B1
-    const pxPerMmX = TW / Math.max(S.B, 1);
-    const pxPerMmY = TH / Math.max(S.A, 1);
-    const titleMm = clamp(Math.min(S.B1 * 0.24, S.A * 0.14), 22, 95);
-    const subMm = titleMm * 0.34;
-    g2.save();
-    g2.translate(sx(gm.xCenter), TH / 2);
-    if (S.scheme === 'A2') g2.rotate(Math.PI);
-    g2.scale(pxPerMmX / pxPerMmY, 1);
-    g2.fillStyle = '#0f172a';
-    g2.font = `800 ${Math.round(titleMm * pxPerMmY)}px sans-serif`;
-    g2.textAlign = 'center';
-    g2.textBaseline = 'middle';
-    g2.fillText('ЛИЦО', 0, -titleMm * 0.24 * pxPerMmY);
-    g2.fillStyle = '#2563eb';
-    g2.font = `700 ${Math.round(subMm * pxPerMmY)}px monospace`;
-    g2.fillText(`FFS ${S.B1}×${S.A} (${S.scheme})`, 0, titleMm * 0.48 * pxPerMmY);
-    g2.restore();
+    if (!hideBase) {
+      // Aspect-ratio compensated "ЛИЦО" graphic sized strictly to fit inside B1
+      const pxPerMmX = TW / Math.max(S.B, 1);
+      const pxPerMmY = TH / Math.max(S.A, 1);
+      const titleMm = clamp(Math.min(S.B1 * 0.24, S.A * 0.14), 22, 95);
+      const subMm = titleMm * 0.34;
+      g2.save();
+      g2.translate(sx(gm.xCenter), TH / 2);
+      if (S.scheme === 'A2') g2.rotate(Math.PI);
+      g2.scale(pxPerMmX / pxPerMmY, 1);
+      g2.fillStyle = '#0f172a';
+      g2.font = `800 ${Math.round(titleMm * pxPerMmY)}px sans-serif`;
+      g2.textAlign = 'center';
+      g2.textBaseline = 'middle';
+      g2.fillText('ЛИЦО', 0, -titleMm * 0.24 * pxPerMmY);
+      g2.fillStyle = '#2563eb';
+      g2.font = `700 ${Math.round(subMm * pxPerMmY)}px monospace`;
+      g2.fillText(`FFS ${S.B1}×${S.A} (${S.scheme})`, 0, titleMm * 0.48 * pxPerMmY);
+      g2.restore();
+    }
+
+    // Transverse weld seams & dead zones on 3D bag
+    if (S.transOn) {
+      const tr = FFS.getTransverseGeom(S);
+      const draw3DTrans = (ya, yb) => {
+        if (yb <= ya) return;
+        const y0 = sy(ya), h = sy(yb - ya);
+        g2.save();
+        g2.fillStyle = 'rgba(220,38,38,0.22)';
+        g2.fillRect(0, y0, TW, h);
+        g2.beginPath(); g2.rect(0, y0, TW, h); g2.clip();
+        g2.strokeStyle = 'rgba(220,38,38,0.55)';
+        g2.lineWidth = 3;
+        g2.beginPath();
+        for (let x = -h; x < TW + h; x += 28) { g2.moveTo(x, y0); g2.lineTo(x + h, y0 + h); }
+        g2.stroke();
+        g2.restore();
+      };
+      draw3DTrans(0, Math.min(tr.topEnd, S.A));
+      draw3DTrans(Math.max(0, tr.botStart), S.A);
+
+      const draw3DHLine = (mm, col, dash) => {
+        if (mm <= 0 || mm >= S.A) return;
+        const y = sy(mm);
+        g2.save();
+        g2.strokeStyle = col;
+        g2.lineWidth = 4;
+        g2.setLineDash(dash);
+        g2.beginPath(); g2.moveTo(0, y); g2.lineTo(TW, y); g2.stroke();
+        g2.restore();
+      };
+      draw3DHLine(tr.topEnd, '#dc2626', [18, 10]);
+      draw3DHLine(tr.botStart, '#dc2626', [18, 10]);
+      if (tr.dz > 0) {
+        draw3DHLine(tr.safeTop, '#f59e0b', [10, 10]);
+        draw3DHLine(tr.safeBot, '#f59e0b', [10, 10]);
+      }
+    }
 
     if (S.embOn) {
       S.E.forEach(v => {

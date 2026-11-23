@@ -27,7 +27,7 @@
 
   // Neutral starting geometry (no hardcoded client/TK/RL presets)
   FFS.DEFAULT_STATE = {
-    A: 700, B: 880, autoB: true, B1: 300, B2: 120, B2tolM: -6, B2tolP: 6,
+    A: 700, B: 880, autoB: false, autoB4: true, B1: 300, B2: 120, B2tolM: -6, B2tolP: 6,
     B3: 150, B4: 150, T1: 8, T2: 32, t1InB3: false,
     S1: true, S2: false, S3: false, S2off: 12, S3off: 0,
     symMode: 'face_back', symMargin: 15, showZones: true, mirror2d: false,
@@ -37,7 +37,11 @@
     cutIntOn: false, C2: 750, D2: 250, cutIntPat: '3x6',
     fgOn: false, F: 820, G: 200,
     pmOn: false, pmW: 40, pmH: 15, pmX: 50, pmY: 25, pmColor: '#000000',
-    scheme: 'A1'
+    scheme: 'A1',
+    transOn: false, topSeal: 20, botSeal: 20, deadZone: 10,
+    omShow2D: true, omShow3D: true, omHideLabels3D: true,
+    omOpacity2D: 55, omOpacity3D: 100, omFlipX: false, omRot180: false,
+    omCropL: 0, omCropR: 0, omCropT: 0, omCropB: 0
   };
 
   FFS.cloneDefaultState = function () {
@@ -50,9 +54,11 @@
 
     const numKeys = ['A', 'B', 'B1', 'B2', 'B2tolM', 'B2tolP', 'B3', 'B4', 'T1', 'T2',
       'S2off', 'S3off', 'symMargin', 'embW', 'perfW', 'C1', 'D1', 'C2', 'D2', 'F', 'G',
-      'pmW', 'pmH', 'pmX', 'pmY'];
-    const boolKeys = ['autoB', 't1InB3', 'S1', 'S2', 'S3', 'showZones', 'mirror2d',
-      'embOn', 'perfOn', 'cutExtOn', 'cutIntOn', 'fgOn', 'pmOn'];
+      'pmW', 'pmH', 'pmX', 'pmY', 'topSeal', 'botSeal', 'deadZone',
+      'omOpacity2D', 'omOpacity3D', 'omCropL', 'omCropR', 'omCropT', 'omCropB'];
+    const boolKeys = ['autoB', 'autoB4', 't1InB3', 'S1', 'S2', 'S3', 'showZones', 'mirror2d',
+      'embOn', 'perfOn', 'cutExtOn', 'cutIntOn', 'fgOn', 'pmOn',
+      'transOn', 'omShow2D', 'omShow3D', 'omHideLabels3D', 'omFlipX', 'omRot180'];
     const strKeys = ['symMode', 'embAlign', 'perfAlign', 'cutExtPat', 'cutIntPat', 'pmColor', 'scheme'];
 
     numKeys.forEach(k => {
@@ -65,6 +71,12 @@
       if (typeof raw[k] === 'string' && raw[k].length) base[k] = raw[k];
     });
 
+    if (typeof raw.autoB4 !== 'boolean') {
+      base.autoB4 = !base.autoB;
+    }
+    if (base.autoB4 && base.autoB) {
+      base.autoB = false;
+    }
     if (!['face_back', 'off'].includes(base.symMode)) base.symMode = 'face_back';
     if (!['left', 'center'].includes(base.embAlign)) base.embAlign = 'left';
     if (!['left', 'center'].includes(base.perfAlign)) base.perfAlign = 'left';
@@ -209,5 +221,11 @@
     xrayOn: false,
     symNote: '',
     activePresetId: ''
+  };
+  FFS.artwork = {
+    img: null,
+    fileName: '',
+    naturalW: 0,
+    naturalH: 0
   };
 })(window);

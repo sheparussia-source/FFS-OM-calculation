@@ -140,6 +140,67 @@
       ctx2d.fillRect(r.x, oy, r.w, webH);
     }
 
+    // Uploaded OM artwork overlay (XOR flip keeps artwork locked to film T1..T2 in both normal & mirrored 2D)
+    if (S.omShow2D && typeof FFS.hasArtwork === 'function' && FFS.hasArtwork()) {
+      const effFlipX = Boolean(S.omFlipX) !== Boolean(S.mirror2d);
+      FFS.drawArtworkOnCtx(ctx2d, ox, oy, webW, webH, effFlipX, Boolean(S.omRot180), (S.omOpacity2D ?? 55) / 100, S);
+    }
+
+    // Transverse weld seams & dead zones (top / bottom along A)
+    if (S.transOn) {
+      const tr = FFS.getTransverseGeom(S);
+      const drawTransHatch = (ya, yb) => {
+        if (yb <= ya) return;
+        const py = y2p(ya), ph = (yb - ya) * scale;
+        ctx2d.save();
+        ctx2d.fillStyle = 'rgba(220, 38, 38, 0.14)';
+        ctx2d.fillRect(ox, py, webW, ph);
+        ctx2d.beginPath();
+        ctx2d.rect(ox, py, webW, ph);
+        ctx2d.clip();
+        ctx2d.strokeStyle = 'rgba(220, 38, 38, 0.42)';
+        ctx2d.lineWidth = 0.9;
+        ctx2d.beginPath();
+        for (let x = ox - ph; x < ox + webW + ph; x += 10) {
+          ctx2d.moveTo(x, py); ctx2d.lineTo(x + ph, py + ph);
+        }
+        ctx2d.stroke();
+        ctx2d.restore();
+      };
+
+      drawTransHatch(0, Math.min(tr.topEnd, S.A));
+      drawTransHatch(Math.max(0, tr.botStart), S.A);
+
+      if (tr.dz > 0) {
+        ctx2d.fillStyle = 'rgba(245, 158, 11, 0.14)';
+        if (tr.safeTop > tr.topEnd) {
+          ctx2d.fillRect(ox, y2p(tr.topEnd), webW, (Math.min(tr.safeTop, S.A) - tr.topEnd) * scale);
+        }
+        if (tr.botStart > tr.safeBot) {
+          const yStart = Math.max(0, tr.safeBot);
+          ctx2d.fillRect(ox, y2p(yStart), webW, (tr.botStart - yStart) * scale);
+        }
+      }
+
+      // Crisp horizontal seam & dead-zone lines
+      const drawHLine = (mm, col, dash) => {
+        if (mm <= 0 || mm >= S.A) return;
+        const py = y2p(mm);
+        ctx2d.save();
+        ctx2d.strokeStyle = col;
+        ctx2d.lineWidth = 1.2;
+        ctx2d.setLineDash(dash);
+        ctx2d.beginPath(); ctx2d.moveTo(ox, py); ctx2d.lineTo(ox + webW, py); ctx2d.stroke();
+        ctx2d.restore();
+      };
+      drawHLine(tr.topEnd, '#dc2626', [6, 3]);
+      drawHLine(tr.botStart, '#dc2626', [6, 3]);
+      if (tr.dz > 0) {
+        drawHLine(tr.safeTop, '#d97706', [3, 3]);
+        drawHLine(tr.safeBot, '#d97706', [3, 3]);
+      }
+    }
+
     if (S.showZones) {
       const tol = Math.max(Math.abs(S.B2tolM), Math.abs(S.B2tolP));
       if (tol > 0) {
@@ -285,6 +346,18 @@
     ctx2d.strokeStyle = '#0f172a';
     ctx2d.lineWidth = 1.6;
     ctx2d.strokeRect(ox, oy, webW, webH);
+
+    if (S.transOn) {
+      const tr = FFS.getTransverseGeom(S);
+      ctx2d.save();
+      ctx2d.font = '700 9.5px monospace';
+      ctx2d.fillStyle = '#dc2626';
+      ctx2d.textAlign = 'right';
+      ctx2d.textBaseline = 'middle';
+      if (tr.topEnd > 0) ctx2d.fillText(`Шов ${tr.topEnd}`, ox - 5, y2p(tr.topEnd / 2));
+      if (tr.botStart < S.A) ctx2d.fillText(`Шов ${S.A - tr.botStart}`, ox - 5, y2p((tr.botStart + S.A) / 2));
+      ctx2d.restore();
+    }
 
     // Draw E/P badges unclipped so edge values never get cropped
     deferredBadges.forEach(bd => {
@@ -509,11 +582,16 @@
       } else if (inlineTarget.key === 'B') {
         S.autoB = false;
         S.B = clamp(Math.round(v), 200, 3000);
+        if (S.autoB4) FFS.recalcBalance(S);
+      } else if (inlineTarget.key === 'B4') {
+        S.autoB4 = false;
+        S.B4 = clamp(Math.round(v), 0, 1200);
+        if (S.autoB) FFS.recalcBalance(S);
       } else {
         const k = inlineTarget.key;
         const minV = k.startsWith('T') ? 0 : (k === 'A' ? 150 : (k === 'B1' ? 80 : (k === 'B3' && S.t1InB3 ? S.T1 + 10 : 10)));
         S[k] = Math.max(minV, Math.round(v));
-        if (S.autoB) S.B = Math.round(FFS.getGeom(S).sumB);
+        FFS.recalcBalance(S);
       }
       FFS.syncStateToInputs();
       FFS.updateAll(true);
@@ -594,9 +672,26 @@
         else if (h.key === 'B2L') { S.B2 = clamp(o.B2 + dxMm, 10, 600); tipText = `B2 = ${S.B2} мм`; }
         else if (h.key === 'B2R') { S.B2 = clamp(o.B2 + Math.round(rawDx / 2), 10, 600); tipText = `B2 = ${S.B2} мм`; }
         else if (h.key === 'B1') { S.B1 = clamp(o.B1 + dxMm, 80, 1500); tipText = `B1 = ${S.B1} мм`; }
-        else if (h.key === 'B4') { S.B4 = clamp(o.B4 + dxMm, 10, 1200); tipText = `B4 = ${S.B4} мм`; }
-        else if (h.key === 'T2') { S.T2 = clamp(o.T2 + dxMm, 0, 150); tipText = `T2 = ${S.T2} мм`; }
-        if (S.autoB) S.B = Math.round(FFS.getGeom(S).sumB);
+        else if (h.key === 'B4') {
+          if (S.autoB4) {
+            S.T2 = clamp(o.T2 - dxMm, 0, 150);
+            FFS.recalcBalance(S);
+            tipText = `B4 = ${S.B4} мм (T2 = ${S.T2})`;
+          } else {
+            S.B4 = clamp(o.B4 + dxMm, 0, 1200);
+            tipText = `B4 = ${S.B4} мм`;
+          }
+        } else if (h.key === 'T2') {
+          if (S.autoB4) {
+            S.B = clamp(o.B + dxMm, 200, 3000);
+            FFS.recalcBalance(S);
+            tipText = `B = ${S.B} мм (B4 = ${S.B4})`;
+          } else {
+            S.T2 = clamp(o.T2 + dxMm, 0, 150);
+            tipText = `T2 = ${S.T2} мм`;
+          }
+        }
+        FFS.recalcBalance(S);
       } else if (h.type === 'E') {
         S.E[h.idx] = clamp(o.E[h.idx] + dxMm, 0, S.B);
         tipText = `E${h.idx + 1} = ${S.E[h.idx]} мм`;

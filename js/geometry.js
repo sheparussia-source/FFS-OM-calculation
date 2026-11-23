@@ -5,6 +5,24 @@
   const clamp = FFS.clamp;
   const smoothstep = FFS.smoothstep;
 
+  FFS.calcAutoB4 = function (S) {
+    const st = S || FFS.state;
+    const s1L = st.T1;
+    const b3Net = st.t1InB3 ? Math.max(0, st.B3 - st.T1) : st.B3;
+    const fixed = s1L + b3Net + 2 * st.B2 + st.B1 + st.T2;
+    return Math.round((st.B - fixed) * 10) / 10;
+  };
+
+  FFS.recalcBalance = function (S) {
+    const st = S || FFS.state;
+    if (st.autoB4) {
+      st.autoB = false;
+      st.B4 = Math.round(FFS.calcAutoB4(st));
+    } else if (st.autoB) {
+      st.B = Math.round(FFS.getGeom(st).sumB);
+    }
+  };
+
   FFS.getGeom = function (S) {
     const st = S || FFS.state;
     const s1L = st.T1;
@@ -13,7 +31,8 @@
     const s4 = s2 + st.B2;             // B2L | B1
     const s5 = s4 + st.B1;             // B1 | B2R
     const s7 = s5 + st.B2;             // B2R | B4
-    const s8 = s7 + st.B4;             // B4 | T2
+    const b4Eff = Math.max(0, st.B4);
+    const s8 = s7 + b4Eff;             // B4 | T2
     const sumB = s8 + st.T2;
     const xCenter = s4 + st.B1 / 2;
     const halfPerim = st.B1 + st.B2;
@@ -21,12 +40,24 @@
     const seamS1 = s1L + 2 * st.B1 + 2 * st.B2;
     const seamS3 = (st.S3off === 0 && backOverlap > 0) ? s8 : (seamS1 + st.S3off);
     const seamS2 = seamS1 + st.S2off;
-    return { sumB, s1L, b3Net, s2, s4, s5, s7, s8, xCenter, halfPerim, backOverlap, seamS1, seamS2, seamS3 };
+    return { sumB, s1L, b3Net, b4Eff, s2, s4, s5, s7, s8, xCenter, halfPerim, backOverlap, seamS1, seamS2, seamS3 };
   };
 
   FFS.getStripBounds = function (val, w, align) {
     const left = align === 'center' ? val - w / 2 : val;
     return { left, right: left + w, center: left + w / 2 };
+  };
+
+
+  FFS.getTransverseGeom = function (S) {
+    const st = S || FFS.state;
+    const topEnd = st.transOn ? Math.max(0, st.topSeal) : 0;
+    const botStart = st.transOn ? Math.max(0, st.A - Math.max(0, st.botSeal)) : st.A;
+    const dz = st.transOn ? Math.max(0, st.deadZone) : 0;
+    const safeTop = topEnd + dz;
+    const safeBot = botStart - dz;
+    const effA = Math.max(0, safeBot - safeTop);
+    return { on: !!st.transOn, topEnd, botStart, dz, safeTop, safeBot, effA };
   };
 
   FFS.parseMatrix = function (str) {
@@ -170,6 +201,40 @@
           });
         }
       });
+    }
+
+    if (st.transOn) {
+      const tr = FFS.getTransverseGeom(st);
+      if (tr.topEnd >= tr.botStart) {
+        rows.push({ label: 'Поперечные швы', status: 'err', text: 'Швы перекрываются!' });
+      } else if (tr.safeTop >= tr.safeBot) {
+        rows.push({ label: 'Мёртвые зоны (A)', status: 'warn', text: 'Нет чистой зоны печати' });
+      }
+
+      const checkY = (label, y0, y1) => {
+        if (y0 < tr.topEnd - 0.1 || y1 > tr.botStart + 0.1) {
+          rows.push({ label, status: 'err', text: 'В зоне попер. шва!' });
+        } else if (tr.dz > 0 && (y0 < tr.safeTop - 0.1 || y1 > tr.safeBot + 0.1)) {
+          rows.push({ label, status: 'warn', text: 'В мёртвой зоне шва' });
+        }
+      };
+
+      if (st.pmOn) {
+        checkY('Фотометка (по Y)', st.pmY, st.pmY + st.pmH);
+      }
+      if (st.cutExtOn) {
+        const { rows: rExt } = FFS.parseMatrix(st.cutExtPat);
+        const hExt = (rExt - 1) * 14 + 9;
+        checkY('Разрезы C1/D1', st.D1, st.D1 + hExt);
+      }
+      if (st.cutIntOn) {
+        const { rows: rInt } = FFS.parseMatrix(st.cutIntPat);
+        const hInt = (rInt - 1) * 14 + 9;
+        checkY('Разрезы C2/D2', st.D2, st.D2 + hInt);
+      }
+      if (st.fgOn) {
+        checkY('Тиснение F/G', st.G, st.G + 95);
+      }
     }
 
     return rows;
