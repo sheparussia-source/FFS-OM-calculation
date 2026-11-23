@@ -21,16 +21,160 @@
     setTimeout(() => { FFS.resize2D(); FFS.resize3D(); }, 20);
   };
 
-  FFS.applyPreset = function (key) {
-    FFS.state = JSON.parse(JSON.stringify(FFS.PRESETS[key]));
+  let toastTimer = null;
+  FFS.showToast = function (msg) {
+    const el = $('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  };
+
+  FFS.renderPresetSelect = function () {
+    const sel = $('preset-select');
+    const delBtn = $('btn-del-preset');
+    if (!sel) return;
+
+    sel.innerHTML = '';
+    const baseOpt = document.createElement('option');
+    baseOpt.value = '';
+    baseOpt.textContent = FFS.savedPresets.length
+      ? '— Базовый шаблон —'
+      : '— Нет сохранённых —';
+    sel.appendChild(baseOpt);
+
+    FFS.savedPresets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.name} (${p.data.B}×${p.data.A})`;
+      sel.appendChild(opt);
+    });
+
+    sel.value = FFS.ui.activePresetId || '';
+    if (delBtn) delBtn.disabled = !FFS.ui.activePresetId;
+  };
+
+  FFS.loadDefaultTemplate = function () {
+    FFS.state = FFS.cloneDefaultState();
+    FFS.ui.activePresetId = '';
     FFS.ui.symNote = '';
-    $('pre-tk').classList.toggle('active', key === 'tk03343');
-    $('pre-rl1').classList.toggle('active', key === 'rl1');
-    $('pre-rl2').classList.toggle('active', key === 'rl2');
-    $('pre-10401').classList.toggle('active', key === 'm10401');
+    FFS.renderPresetSelect();
     FFS.syncStateToInputs();
     FFS.reset2DView();
     FFS.updateAll(true);
+  };
+
+  FFS.applySavedPreset = function (id) {
+    if (!id) {
+      FFS.loadDefaultTemplate();
+      return;
+    }
+    const preset = FFS.getPresetById(id);
+    if (!preset) {
+      FFS.loadDefaultTemplate();
+      return;
+    }
+    FFS.state = FFS.sanitizeState(preset.data);
+    FFS.ui.activePresetId = preset.id;
+    FFS.ui.symNote = '';
+    FFS.renderPresetSelect();
+    FFS.syncStateToInputs();
+    FFS.reset2DView();
+    FFS.updateAll(true);
+    FFS.showToast(`Загружен пресет «${preset.name}»`);
+  };
+
+  function updateSaveModalHint() {
+    const inp = $('preset-name-input');
+    const hint = $('preset-save-hint');
+    if (!inp || !hint) return;
+    const val = inp.value.trim();
+    const exists = val ? FFS.findPresetByName(val) : null;
+    if (exists) {
+      hint.textContent = `Пресет «${exists.name}» уже существует — текущие параметры перезапишут его.`;
+      hint.classList.add('overwrite');
+    } else {
+      hint.textContent = 'Пресет сохранится локально в браузере (можно выгрузить в JSON).';
+      hint.classList.remove('overwrite');
+    }
+  }
+
+  FFS.openSavePresetModal = function () {
+    const modal = $('preset-modal');
+    const inp = $('preset-name-input');
+    if (!modal || !inp) return;
+    const cur = FFS.ui.activePresetId ? FFS.getPresetById(FFS.ui.activePresetId) : null;
+    const S = FFS.state;
+    inp.value = cur ? cur.name : `FFS ${S.B}×${S.A} (B1=${S.B1}, B2=${S.B2})`;
+    updateSaveModalHint();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => { inp.focus(); inp.select(); }, 20);
+  };
+
+  FFS.closeSavePresetModal = function () {
+    const modal = $('preset-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  };
+
+  FFS.confirmSavePreset = function () {
+    const inp = $('preset-name-input');
+    if (!inp) return;
+    const name = inp.value.trim();
+    if (!name) {
+      inp.focus();
+      return;
+    }
+    const res = FFS.saveCurrentAsPreset(name);
+    if (!res) return;
+    FFS.ui.activePresetId = res.preset.id;
+    FFS.renderPresetSelect();
+    FFS.closeSavePresetModal();
+    if (!res.stored) {
+      FFS.showToast(`Сохранено в сессии (localStorage недоступен — используйте Экспорт)`);
+    } else {
+      FFS.showToast(res.updated ? `Пресет «${res.preset.name}» обновлён` : `Пресет «${res.preset.name}» сохранён`);
+    }
+  };
+
+  FFS.deleteSelectedPreset = function () {
+    if (!FFS.ui.activePresetId) return;
+    const cur = FFS.getPresetById(FFS.ui.activePresetId);
+    if (!cur) return;
+    if (!root.confirm(`Удалить пресет «${cur.name}»?`)) return;
+    FFS.deletePresetById(cur.id);
+    FFS.ui.activePresetId = '';
+    FFS.renderPresetSelect();
+    FFS.showToast(`Пресет «${cur.name}» удалён`);
+  };
+
+  FFS.exportPresetsJSON = function () {
+    if (!FFS.savedPresets.length) {
+      FFS.showToast('Нет сохранённых пресетов для экспорта');
+      return;
+    }
+    const json = FFS.serializePresetsJSON();
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ffs-bag-presets.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+    FFS.showToast(`Экспортировано пресетов: ${FFS.savedPresets.length}`);
+  };
+
+  FFS.triggerImportPresets = function () {
+    const inp = $('in-import-presets');
+    if (inp) {
+      inp.value = '';
+      inp.click();
+    }
   };
 
   FFS.syncStateToInputs = function () {
@@ -264,6 +408,41 @@
     $('in-xray').addEventListener('change', e => {
       FFS.setXray(e.target.checked);
     });
+
+    $('preset-select').addEventListener('change', e => {
+      FFS.applySavedPreset(e.target.value);
+    });
+
+    const modal = $('preset-modal');
+    const nameInp = $('preset-name-input');
+    nameInp.addEventListener('input', updateSaveModalHint);
+    nameInp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') FFS.confirmSavePreset();
+      if (e.key === 'Escape') FFS.closeSavePresetModal();
+    });
+    modal.addEventListener('mousedown', e => {
+      if (e.target === modal) FFS.closeSavePresetModal();
+    });
+
+    $('in-import-presets').addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const { added, updated } = FFS.importPresetsFromJSON(String(reader.result || ''));
+          FFS.renderPresetSelect();
+          if (added + updated === 0) {
+            FFS.showToast('В файле не найдено подходящих пресетов');
+          } else {
+            FFS.showToast(`Импорт: добавлено ${added}, обновлено ${updated}`);
+          }
+        } catch (err) {
+          FFS.showToast('Ошибка чтения JSON-файла пресетов');
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    });
   }
 
   function initSplitter() {
@@ -303,7 +482,7 @@
   FFS.init2DInteraction();
   bindInputs();
   initSplitter();
-  FFS.applyPreset('tk03343');
+  FFS.loadDefaultTemplate();
   FFS.updateFoldUI();
   FFS.loadThree(() => {
     FFS.init3D();

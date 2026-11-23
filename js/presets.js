@@ -16,6 +16,7 @@
   }
 
   const FFS = root.FFS = root.FFS || {};
+  const STORAGE_KEY = 'ffs_bag_cad_user_presets_v1';
 
   FFS.$ = function (id) { return document.getElementById(id); };
   FFS.clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
@@ -24,64 +25,188 @@
     return t * t * (3 - 2 * t);
   };
 
-  FFS.PRESETS = {
-    tk03343: {
-      A: 780, B: 1220, autoB: true, B1: 390, B2: 200, B2tolM: -6, B2tolP: 6, B3: 195, B4: 195, T1: 8, T2: 32, t1InB3: false,
-      S1: true, S2: false, S3: false, S2off: 12, S3off: 0,
-      symMode: 'face_back', symMargin: 15, showZones: true, mirror2d: false,
-      embOn: true, embW: 62, embAlign: 'left', E: [30, 405, 695, 1070, null],
-      perfOn: false, perfW: 30, P: [null, null, null, null],
-      cutExtOn: false, C1: 60, D1: 80, cutExtPat: '3x6',
-      cutIntOn: false, C2: 1120, D2: 360, cutIntPat: '3x6',
-      fgOn: false, F: 1185, G: 260,
-      pmOn: false, pmW: 50, pmH: 15, pmX: 60, pmY: 25, pmColor: '#000000',
-      scheme: 'A1'
-    },
-    rl1: {
-      A: 720, B: 940, autoB: true, B1: 350, B2: 100, B2tolM: -6, B2tolP: 6, B3: 175, B4: 175, T1: 8, T2: 32, t1InB3: false,
-      S1: true, S2: false, S3: false, S2off: 12, S3off: 0,
-      symMode: 'off', symMargin: 15, showZones: true, mirror2d: false,
-      embOn: false, embW: 62, embAlign: 'left', E: [null, null, null, null, null],
-      perfOn: false, perfW: 25, P: [null, null, null, null],
-      cutExtOn: false, C1: 50, D1: 80, cutExtPat: '3x6',
-      cutIntOn: false, C2: 860, D2: 300, cutIntPat: '3x6',
-      fgOn: false, F: 905, G: 220,
-      pmOn: true, pmW: 50, pmH: 15, pmX: 60, pmY: 20, pmColor: '#000000',
-      scheme: 'A1'
-    },
-    rl2: {
-      A: 650, B: 770, autoB: true, B1: 245, B2: 85, B2tolM: -6, B2tolP: 6, B3: 183, B4: 140, T1: 8, T2: 32, t1InB3: true,
-      S1: true, S2: false, S3: true, S2off: 35, S3off: 0,
-      symMode: 'face_channel', symMargin: 30, showZones: true, mirror2d: false,
-      embOn: true, embW: 60, embAlign: 'left', E: [30, 298, 423, 673, null],
-      perfOn: false, perfW: 25, P: [null, null, null, null],
-      cutExtOn: false, C1: 50, D1: 70, cutExtPat: '3x6',
-      cutIntOn: true, C2: 693, D2: 252, cutIntPat: '3x6',
-      fgOn: false, F: 735, G: 200,
-      pmOn: true, pmW: 20, pmH: 40, pmX: 45, pmY: 25, pmColor: '#000000',
-      scheme: 'A2'
-    },
-    m10401: {
-      A: 630, B: 790, autoB: true, B1: 250, B2: 90, B2tolM: -6, B2tolP: 6, B3: 183, B4: 145, T1: 8, T2: 32, t1InB3: true,
-      S1: true, S2: false, S3: true, S2off: 35, S3off: 0,
-      symMode: 'face_channel', symMargin: 30, showZones: true, mirror2d: true,
-      embOn: true, embW: 60, embAlign: 'left', E: [30, 303, 433, 693, null],
-      perfOn: false, perfW: 25, P: [null, null, null, null],
-      cutExtOn: false, C1: 50, D1: 70, cutExtPat: '3x6',
-      cutIntOn: true, C2: 713, D2: 252, cutIntPat: '3x6',
-      fgOn: false, F: 740, G: 200,
-      pmOn: true, pmW: 40, pmH: 20, pmX: 483, pmY: 50, pmColor: '#000000',
-      scheme: 'A2'
+  // Neutral starting geometry (no hardcoded client/TK/RL presets)
+  FFS.DEFAULT_STATE = {
+    A: 700, B: 880, autoB: true, B1: 300, B2: 120, B2tolM: -6, B2tolP: 6,
+    B3: 150, B4: 150, T1: 8, T2: 32, t1InB3: false,
+    S1: true, S2: false, S3: false, S2off: 12, S3off: 0,
+    symMode: 'face_back', symMargin: 15, showZones: true, mirror2d: false,
+    embOn: false, embW: 62, embAlign: 'left', E: [null, null, null, null, null],
+    perfOn: false, perfW: 25, P: [null, null, null, null],
+    cutExtOn: false, C1: 50, D1: 80, cutExtPat: '3x6',
+    cutIntOn: false, C2: 750, D2: 250, cutIntPat: '3x6',
+    fgOn: false, F: 820, G: 200,
+    pmOn: false, pmW: 40, pmH: 15, pmX: 50, pmY: 25, pmColor: '#000000',
+    scheme: 'A1'
+  };
+
+  FFS.cloneDefaultState = function () {
+    return JSON.parse(JSON.stringify(FFS.DEFAULT_STATE));
+  };
+
+  FFS.sanitizeState = function (raw) {
+    const base = FFS.cloneDefaultState();
+    if (!raw || typeof raw !== 'object') return base;
+
+    const numKeys = ['A', 'B', 'B1', 'B2', 'B2tolM', 'B2tolP', 'B3', 'B4', 'T1', 'T2',
+      'S2off', 'S3off', 'symMargin', 'embW', 'perfW', 'C1', 'D1', 'C2', 'D2', 'F', 'G',
+      'pmW', 'pmH', 'pmX', 'pmY'];
+    const boolKeys = ['autoB', 't1InB3', 'S1', 'S2', 'S3', 'showZones', 'mirror2d',
+      'embOn', 'perfOn', 'cutExtOn', 'cutIntOn', 'fgOn', 'pmOn'];
+    const strKeys = ['symMode', 'embAlign', 'cutExtPat', 'cutIntPat', 'pmColor', 'scheme'];
+
+    numKeys.forEach(k => {
+      if (typeof raw[k] === 'number' && Number.isFinite(raw[k])) base[k] = raw[k];
+    });
+    boolKeys.forEach(k => {
+      if (typeof raw[k] === 'boolean') base[k] = raw[k];
+    });
+    strKeys.forEach(k => {
+      if (typeof raw[k] === 'string' && raw[k].length) base[k] = raw[k];
+    });
+
+    if (!['face_back', 'face_channel', 'off'].includes(base.symMode)) base.symMode = 'face_back';
+    if (!['left', 'center'].includes(base.embAlign)) base.embAlign = 'left';
+    if (!['A1', 'A2'].includes(base.scheme)) base.scheme = 'A1';
+
+    if (Array.isArray(raw.E)) {
+      base.E = [0, 1, 2, 3, 4].map(i => (typeof raw.E[i] === 'number' && Number.isFinite(raw.E[i]) && raw.E[i] >= 0) ? raw.E[i] : null);
+    }
+    if (Array.isArray(raw.P)) {
+      base.P = [0, 1, 2, 3].map(i => (typeof raw.P[i] === 'number' && Number.isFinite(raw.P[i]) && raw.P[i] >= 0) ? raw.P[i] : null);
+    }
+    return base;
+  };
+
+  FFS.loadSavedPresets = function () {
+    try {
+      const raw = root.localStorage ? root.localStorage.getItem(STORAGE_KEY) : null;
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(item => item && typeof item.name === 'string' && item.name.trim())
+        .map(item => ({
+          id: String(item.id || ('p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7))),
+          name: item.name.trim().slice(0, 80),
+          updatedAt: item.updatedAt || new Date().toISOString(),
+          data: FFS.sanitizeState(item.data)
+        }));
+    } catch (e) {
+      return [];
     }
   };
 
-  FFS.state = JSON.parse(JSON.stringify(FFS.PRESETS.tk03343));
+  FFS.persistSavedPresets = function (list) {
+    try {
+      if (!root.localStorage) return false;
+      root.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  FFS.savedPresets = FFS.loadSavedPresets();
+
+  FFS.getPresetById = function (id) {
+    return FFS.savedPresets.find(p => p.id === id) || null;
+  };
+
+  FFS.findPresetByName = function (name) {
+    const norm = String(name || '').trim().toLowerCase();
+    if (!norm) return null;
+    return FFS.savedPresets.find(p => p.name.toLowerCase() === norm) || null;
+  };
+
+  FFS.saveCurrentAsPreset = function (name) {
+    const clean = String(name || '').trim().slice(0, 80);
+    if (!clean) return null;
+
+    const snapshot = FFS.sanitizeState(FFS.state);
+    const existing = FFS.findPresetByName(clean);
+    let updated = false;
+    let target;
+
+    if (existing) {
+      existing.name = clean;
+      existing.data = snapshot;
+      existing.updatedAt = new Date().toISOString();
+      target = existing;
+      updated = true;
+    } else {
+      target = {
+        id: 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+        name: clean,
+        updatedAt: new Date().toISOString(),
+        data: snapshot
+      };
+      FFS.savedPresets.push(target);
+    }
+
+    const stored = FFS.persistSavedPresets(FFS.savedPresets);
+    return { preset: target, updated, stored };
+  };
+
+  FFS.deletePresetById = function (id) {
+    const idx = FFS.savedPresets.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    const removed = FFS.savedPresets.splice(idx, 1)[0];
+    FFS.persistSavedPresets(FFS.savedPresets);
+    return removed;
+  };
+
+  FFS.serializePresetsJSON = function () {
+    return JSON.stringify({
+      app: 'FFS Bag CAD',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      presets: FFS.savedPresets
+    }, null, 2);
+  };
+
+  FFS.importPresetsFromJSON = function (jsonText) {
+    const parsed = JSON.parse(jsonText);
+    let incoming = [];
+    if (Array.isArray(parsed)) incoming = parsed;
+    else if (parsed && Array.isArray(parsed.presets)) incoming = parsed.presets;
+    else if (parsed && typeof parsed.name === 'string' && parsed.data) incoming = [parsed];
+    else throw new Error('Неверный формат JSON');
+
+    let added = 0;
+    let updated = 0;
+    incoming.forEach(item => {
+      if (!item || typeof item.name !== 'string' || !item.name.trim()) return;
+      const cleanName = item.name.trim().slice(0, 80);
+      const data = FFS.sanitizeState(item.data || item);
+      const existing = FFS.findPresetByName(cleanName);
+      if (existing) {
+        existing.data = data;
+        existing.updatedAt = item.updatedAt || new Date().toISOString();
+        updated++;
+      } else {
+        FFS.savedPresets.push({
+          id: 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+          name: cleanName,
+          updatedAt: item.updatedAt || new Date().toISOString(),
+          data
+        });
+        added++;
+      }
+    });
+
+    FFS.persistSavedPresets(FFS.savedPresets);
+    return { added, updated };
+  };
+
+  FFS.state = FFS.cloneDefaultState();
   FFS.ui = {
     foldPct: 65,
     isPlaying: false,
     playDir: 1,
     foldTarget: null,
     xrayOn: false,
-    symNote: ''
+    symNote: '',
+    activePresetId: ''
   };
 })(window);

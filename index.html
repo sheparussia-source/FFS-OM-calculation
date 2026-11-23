@@ -21,10 +21,12 @@
 
   <div class="hdr-group">
     <span class="hdr-label">Пресеты:</span>
-    <button class="btn" id="pre-tk" onclick="FFS.applyPreset('tk03343')">ТК 03343 (1220×780)</button>
-    <button class="btn" id="pre-rl1" onclick="FFS.applyPreset('rl1')">РЛ №1 (940×720)</button>
-    <button class="btn" id="pre-rl2" onclick="FFS.applyPreset('rl2')">РЛ №2 (770×650)</button>
-    <button class="btn" id="pre-10401" onclick="FFS.applyPreset('m10401')">10401-339 (790×630)</button>
+    <select id="preset-select" class="hdr-select" title="Выбрать сохранённый пресет или сбросить к базовому"></select>
+    <button class="btn btn-primary" id="btn-save-preset" onclick="FFS.openSavePresetModal()" title="Сохранить текущие параметры как пресет">+ Сохранить</button>
+    <button class="btn" id="btn-del-preset" onclick="FFS.deleteSelectedPreset()" title="Удалить выбранный пресет" disabled>✕</button>
+    <button class="btn" onclick="FFS.exportPresetsJSON()" title="Экспорт всех пресетов в JSON-файл">Экспорт</button>
+    <button class="btn" onclick="FFS.triggerImportPresets()" title="Импорт пресетов из JSON-файла">Импорт</button>
+    <input type="file" id="in-import-presets" accept=".json,application/json" class="hidden-file" />
   </div>
 
   <div class="hdr-group">
@@ -312,6 +314,31 @@
     </div>
   </section>
 </div>
+
+
+<!-- SAVE PRESET MODAL -->
+<div class="modal-backdrop" id="preset-modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="preset-modal-title">
+    <div class="modal-hdr">
+      <span id="preset-modal-title">Сохранить пресет</span>
+      <button class="modal-close" onclick="FFS.closeSavePresetModal()" title="Закрыть">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="preset-name-input">Название пресета (ТК / РЛ / заказ)</label>
+        <input type="text" id="preset-name-input" maxlength="80" placeholder="Например: Заказ №1 — 880×700" />
+      </div>
+      <div class="modal-hint" id="preset-save-hint">Пресет сохранится локально в браузере (можно выгрузить в JSON).</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="FFS.closeSavePresetModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="FFS.confirmSavePreset()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <!-- Classic script tags: works BOTH locally (file://) and on GitHub Pages -->
 <script src="js/presets.js"></script>
