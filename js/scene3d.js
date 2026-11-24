@@ -379,6 +379,10 @@
     bagGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     bagGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     bagGeo.setIndex(indices);
+    // r128 computeVertexNormals does not grow an existing normal buffer.
+    // Vertices added after a size change (the T2 edge) would stay at zero and shade black.
+    const prevN = bagGeo.getAttribute('normal');
+    if (prevN && prevN.count !== positions.length / 3) bagGeo.deleteAttribute('normal');
     bagGeo.computeVertexNormals();
   };
 
