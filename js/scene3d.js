@@ -21,7 +21,8 @@
   function getIdealCamDist() {
     const S = FFS.state;
     const worldScale = 0.01;
-    const diag = Math.max(S.A * worldScale, Math.max(S.B1 + S.B2, S.B * 0.58) * worldScale);
+    const film = Math.max(S.B, FFS.getGeom(S).sumB);
+    const diag = Math.max(S.A * worldScale, Math.max(S.B1 + S.B2, film * 0.58) * worldScale);
     return clamp(diag * 1.65, 5.5, 45);
   }
 
@@ -156,7 +157,8 @@
     g2.fillStyle = '#f8fafc';
     g2.fillRect(0, 0, TW, TH);
 
-    const sx = mm => (mm / Math.max(S.B, 1)) * TW;
+    const filmB = Math.max(S.B, gm.sumB, 1);
+    const sx = mm => (mm / filmB) * TW;
     const sy = mm => (mm / Math.max(S.A, 1)) * TH;
 
     const hasOm3D = Boolean(S.omShow3D && typeof FFS.hasArtwork === 'function' && FFS.hasArtwork());
@@ -196,7 +198,7 @@
 
     if (!hideBase) {
       // Aspect-ratio compensated "ЛИЦО" graphic sized strictly to fit inside B1
-      const pxPerMmX = TW / Math.max(S.B, 1);
+      const pxPerMmX = TW / Math.max(S.B, gm.sumB, 1);
       const pxPerMmY = TH / Math.max(S.A, 1);
       const titleMm = clamp(Math.min(S.B1 * 0.24, S.A * 0.14), 22, 95);
       const subMm = titleMm * 0.34;
@@ -315,7 +317,7 @@
       { on: S.S2, xMm: gm.seamS2, col: '#ea580c' },
       { on: S.S3, xMm: gm.seamS3, col: '#9333ea' }
     ].forEach(sm => {
-      if (!sm.on || sm.xMm < 0 || sm.xMm > S.B) return;
+      if (!sm.on || sm.xMm < 0 || sm.xMm > Math.max(S.B, gm.sumB)) return;
       const x = sx(sm.xMm);
       g2.save();
       g2.strokeStyle = sm.col;
@@ -359,7 +361,7 @@
         for (let c = 0; c < cols; c++) {
           const p = pts[c];
           positions.push(p.x * worldScale, y, (p.z - cz) * worldScale);
-          uvs.push(p.s / Math.max(S.B, 1), v);
+          uvs.push(p.s / Math.max(S.B, FFS.getGeom(S).sumB, 1), v);
         }
       }
       for (let r = 0; r < rows; r++) {
@@ -419,14 +421,15 @@
       gx.lineTo(ox + b.x * sc, oy - b.z * sc);
       gx.stroke();
     }
-    if (S.S1 && g.seamS1 <= S.B) {
+    const filmB = Math.max(S.B, g.sumB);
+    if (S.S1 && g.seamS1 <= filmB) {
       const sp = FFS.evalProfile(g.seamS1, f, S);
       gx.fillStyle = '#ef4444';
       gx.beginPath();
       gx.arc(ox + sp.x * sc, oy - sp.z * sc, 3.2, 0, Math.PI * 2);
       gx.fill();
     }
-    if (S.S3 && g.seamS3 <= S.B && g.backOverlap > 0.5) {
+    if (S.S3 && g.seamS3 <= filmB && g.backOverlap > 0.5) {
       const sp3 = FFS.evalProfile(g.seamS3, f, S);
       gx.fillStyle = '#a855f7';
       gx.beginPath();

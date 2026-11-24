@@ -59,7 +59,7 @@
         <div class="grid-2">
           <div class="field">
             <label>A (Шаг печати)</label>
-            <input type="number" id="in-A" min="150" max="2500" step="1" />
+            <input type="text" inputmode="decimal" id="in-A" min="150" max="2500" step="1" />
           </div>
           <div class="field">
             <label>
@@ -68,23 +68,23 @@
                 <input type="checkbox" id="in-autoB" /> Авто
               </span>
             </label>
-            <input type="number" id="in-B" min="200" max="3000" step="1" />
+            <input type="text" inputmode="decimal" id="in-B" min="200" max="3000" step="1" />
           </div>
           <div class="field">
             <label>B1 (Рукав / Лицо)</label>
-            <input type="number" id="in-B1" min="80" max="1500" step="1" />
+            <input type="text" inputmode="decimal" id="in-B1" min="80" max="1500" step="1" />
           </div>
           <div class="field">
             <label>B2 (Фальцовка)</label>
-            <input type="number" id="in-B2" min="10" max="600" step="1" />
+            <input type="text" inputmode="decimal" id="in-B2" min="10" max="600" step="1" />
           </div>
           <div class="field">
             <label>Допуск B2 (-мм)</label>
-            <input type="number" id="in-B2tolM" min="-30" max="0" step="1" />
+            <input type="text" inputmode="decimal" id="in-B2tolM" min="-30" max="0" step="1" />
           </div>
           <div class="field">
             <label>Допуск B2 (+мм)</label>
-            <input type="number" id="in-B2tolP" min="0" max="30" step="1" />
+            <input type="text" inputmode="decimal" id="in-B2tolP" min="0" max="30" step="1" />
           </div>
         </div>
         <div class="field" style="margin-top:7px;">
@@ -106,7 +106,7 @@
         <div class="grid-2">
           <div class="field">
             <label id="lbl-B3">B3 (Внешний клапан)</label>
-            <input type="number" id="in-B3" min="10" max="1200" step="1" />
+            <input type="text" inputmode="decimal" id="in-B3" min="10" max="1200" step="1" />
           </div>
           <div class="field">
             <label>
@@ -115,15 +115,15 @@
                 <input type="checkbox" id="in-autoB4" checked /> Авто
               </span>
             </label>
-            <input type="number" id="in-B4" min="0" max="1200" step="1" />
+            <input type="text" inputmode="decimal" id="in-B4" min="0" max="1200" step="1" />
           </div>
           <div class="field">
             <label>T1 (Наружн. кромка)</label>
-            <input type="number" id="in-T1" min="0" max="150" step="1" />
+            <input type="text" inputmode="decimal" id="in-T1" min="0" max="150" step="1" />
           </div>
           <div class="field">
             <label>T2 (Внутр. кромка)</label>
-            <input type="number" id="in-T2" min="0" max="150" step="1" />
+            <input type="text" inputmode="decimal" id="in-T2" min="0" max="150" step="1" />
           </div>
         </div>
       </div>
@@ -148,7 +148,7 @@
         <div class="grid-2 mb-6">
           <div class="field">
             <label>Отступ от фальца (мм)</label>
-            <input type="number" id="in-symMargin" min="0" max="200" step="1" value="15" />
+            <input type="text" inputmode="decimal" id="in-symMargin" min="0" max="200" step="1" value="15" />
           </div>
           <div class="field field-end">
             <button class="btn btn-soft btn-h26" onclick="FFS.autoFixPerfSymmetry()">Симметрия P1–P4</button>
@@ -168,8 +168,8 @@
           <label class="chk-row"><input type="checkbox" id="in-S3" /> S3</label>
         </div>
         <div class="grid-2">
-          <div class="field"><label>Сдвиг S2 от S1</label><input type="number" id="in-S2off" step="1" /></div>
-          <div class="field"><label>Сдвиг S3 (0 = край B4)</label><input type="number" id="in-S3off" step="1" /></div>
+          <div class="field"><label>Сдвиг S2 от S1</label><input type="text" inputmode="decimal" id="in-S2off" step="1" /></div>
+          <div class="field"><label>Сдвиг S3 (0 = край B4)</label><input type="text" inputmode="decimal" id="in-S3off" step="1" /></div>
         </div>
       </div>
 
@@ -179,9 +179,9 @@
           <span class="card-tag">по A</span>
         </div>
         <div class="grid-3">
-          <div class="field"><label>Шов верх (мм)</label><input type="number" id="in-topSeal" min="0" max="150" step="1" /></div>
-          <div class="field"><label>Шов низ (мм)</label><input type="number" id="in-botSeal" min="0" max="150" step="1" /></div>
-          <div class="field"><label>Мёртв. зона</label><input type="number" id="in-deadZone" min="0" max="100" step="1" /></div>
+          <div class="field"><label>Шов верх (мм)</label><input type="text" inputmode="decimal" id="in-topSeal" min="0" max="150" step="1" /></div>
+          <div class="field"><label>Шов низ (мм)</label><input type="text" inputmode="decimal" id="in-botSeal" min="0" max="150" step="1" /></div>
+          <div class="field"><label>Мёртв. зона</label><input type="text" inputmode="decimal" id="in-deadZone" min="0" max="100" step="1" /></div>
         </div>
       </div>
 
@@ -190,7 +190,7 @@
           <label class="chk-row"><input type="checkbox" id="in-embOn" /> Тиснение по полотну (E1–E5)</label>
         </div>
         <div class="grid-2 mb-6">
-          <div class="field"><label>Ширина ролика (мм)</label><input type="number" id="in-embW" min="5" max="200" /></div>
+          <div class="field"><label>Ширина ролика (мм)</label><input type="text" inputmode="decimal" id="in-embW" min="5" max="200" /></div>
           <div class="field">
             <label>Привязка координат</label>
             <select id="in-embAlign">
@@ -200,11 +200,11 @@
           </div>
         </div>
         <div class="grid-3">
-          <div class="field"><label>E1</label><input type="number" id="in-E1" min="0" placeholder="—" /></div>
-          <div class="field"><label>E2</label><input type="number" id="in-E2" min="0" placeholder="—" /></div>
-          <div class="field"><label>E3</label><input type="number" id="in-E3" min="0" placeholder="—" /></div>
-          <div class="field"><label>E4</label><input type="number" id="in-E4" min="0" placeholder="—" /></div>
-          <div class="field"><label>E5</label><input type="number" id="in-E5" min="0" placeholder="—" /></div>
+          <div class="field"><label>E1</label><input type="text" inputmode="decimal" id="in-E1" min="0" placeholder="—" /></div>
+          <div class="field"><label>E2</label><input type="text" inputmode="decimal" id="in-E2" min="0" placeholder="—" /></div>
+          <div class="field"><label>E3</label><input type="text" inputmode="decimal" id="in-E3" min="0" placeholder="—" /></div>
+          <div class="field"><label>E4</label><input type="text" inputmode="decimal" id="in-E4" min="0" placeholder="—" /></div>
+          <div class="field"><label>E5</label><input type="text" inputmode="decimal" id="in-E5" min="0" placeholder="—" /></div>
         </div>
       </div>
 
@@ -213,7 +213,7 @@
           <label class="chk-row"><input type="checkbox" id="in-perfOn" /> Перфорация иглами (P1–P4)</label>
         </div>
         <div class="grid-2 mb-6">
-          <div class="field"><label>Ширина полосы (мм)</label><input type="number" id="in-perfW" min="5" max="200" /></div>
+          <div class="field"><label>Ширина полосы (мм)</label><input type="text" inputmode="decimal" id="in-perfW" min="5" max="200" /></div>
           <div class="field">
             <label>Привязка координат</label>
             <select id="in-perfAlign">
@@ -223,10 +223,10 @@
           </div>
         </div>
         <div class="grid-2">
-          <div class="field"><label>P1</label><input type="number" id="in-P1" min="0" placeholder="—" /></div>
-          <div class="field"><label>P2</label><input type="number" id="in-P2" min="0" placeholder="—" /></div>
-          <div class="field"><label>P3</label><input type="number" id="in-P3" min="0" placeholder="—" /></div>
-          <div class="field"><label>P4</label><input type="number" id="in-P4" min="0" placeholder="—" /></div>
+          <div class="field"><label>P1</label><input type="text" inputmode="decimal" id="in-P1" min="0" placeholder="—" /></div>
+          <div class="field"><label>P2</label><input type="text" inputmode="decimal" id="in-P2" min="0" placeholder="—" /></div>
+          <div class="field"><label>P3</label><input type="text" inputmode="decimal" id="in-P3" min="0" placeholder="—" /></div>
+          <div class="field"><label>P4</label><input type="text" inputmode="decimal" id="in-P4" min="0" placeholder="—" /></div>
         </div>
       </div>
 
@@ -235,24 +235,24 @@
         <div class="mb-8">
           <label class="chk-row mb-5"><input type="checkbox" id="in-cutExtOn" /> Внешние разрезы (C1 / D1)</label>
           <div class="grid-3">
-            <div class="field"><label>C1 (X)</label><input type="number" id="in-C1" min="0" /></div>
-            <div class="field"><label>D1 (Y)</label><input type="number" id="in-D1" min="0" /></div>
+            <div class="field"><label>C1 (X)</label><input type="text" inputmode="decimal" id="in-C1" min="0" /></div>
+            <div class="field"><label>D1 (Y)</label><input type="text" inputmode="decimal" id="in-D1" min="0" /></div>
             <div class="field"><label>Схема</label><input type="text" id="in-cutExtPat" /></div>
           </div>
         </div>
         <div class="mb-8">
           <label class="chk-row mb-5"><input type="checkbox" id="in-cutIntOn" /> Внутренние разрезы (C2 / D2)</label>
           <div class="grid-3">
-            <div class="field"><label>C2 (X)</label><input type="number" id="in-C2" min="0" /></div>
-            <div class="field"><label>D2 (Y)</label><input type="number" id="in-D2" min="0" /></div>
+            <div class="field"><label>C2 (X)</label><input type="text" inputmode="decimal" id="in-C2" min="0" /></div>
+            <div class="field"><label>D2 (Y)</label><input type="text" inputmode="decimal" id="in-D2" min="0" /></div>
             <div class="field"><label>Схема</label><input type="text" id="in-cutIntPat" /></div>
           </div>
         </div>
         <div>
           <label class="chk-row mb-5"><input type="checkbox" id="in-fgOn" /> Тиснение в клапане (F / G)</label>
           <div class="grid-2">
-            <div class="field"><label>F (X от края)</label><input type="number" id="in-F" min="0" /></div>
-            <div class="field"><label>G (Y сверху)</label><input type="number" id="in-G" min="0" /></div>
+            <div class="field"><label>F (X от края)</label><input type="text" inputmode="decimal" id="in-F" min="0" /></div>
+            <div class="field"><label>G (Y сверху)</label><input type="text" inputmode="decimal" id="in-G" min="0" /></div>
           </div>
         </div>
       </div>
@@ -263,10 +263,10 @@
           <input type="color" id="in-pmColor" value="#000000" class="color-in" />
         </div>
         <div class="grid-2">
-          <div class="field"><label>Ширина (мм)</label><input type="number" id="in-pmW" min="2" max="150" /></div>
-          <div class="field"><label>Высота (мм)</label><input type="number" id="in-pmH" min="2" max="150" /></div>
-          <div class="field"><label>Позиция X</label><input type="number" id="in-pmX" min="0" max="2500" /></div>
-          <div class="field"><label>Позиция Y</label><input type="number" id="in-pmY" min="0" max="2500" /></div>
+          <div class="field"><label>Ширина (мм)</label><input type="text" inputmode="decimal" id="in-pmW" min="2" max="150" /></div>
+          <div class="field"><label>Высота (мм)</label><input type="text" inputmode="decimal" id="in-pmH" min="2" max="150" /></div>
+          <div class="field"><label>Позиция X</label><input type="text" inputmode="decimal" id="in-pmX" min="0" max="2500" /></div>
+          <div class="field"><label>Позиция Y</label><input type="text" inputmode="decimal" id="in-pmY" min="0" max="2500" /></div>
         </div>
       </div>
     </div>
@@ -316,10 +316,10 @@
           </label>
         </div>
         <div class="grid-2 mb-7">
-          <div class="field"><label>Обрезка лево (%)</label><input type="number" id="in-omCropL" min="0" max="49" step="0.1" /></div>
-          <div class="field"><label>Обрезка право (%)</label><input type="number" id="in-omCropR" min="0" max="49" step="0.1" /></div>
-          <div class="field"><label>Обрезка верх (%)</label><input type="number" id="in-omCropT" min="0" max="49" step="0.1" /></div>
-          <div class="field"><label>Обрезка низ (%)</label><input type="number" id="in-omCropB" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка лево (%)</label><input type="text" inputmode="decimal" id="in-omCropL" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка право (%)</label><input type="text" inputmode="decimal" id="in-omCropR" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка верх (%)</label><input type="text" inputmode="decimal" id="in-omCropT" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка низ (%)</label><input type="text" inputmode="decimal" id="in-omCropB" min="0" max="49" step="0.1" /></div>
         </div>
         <div class="geo-summary mb-6" id="om-ratio-info">Загрузите изображение ОМ для контроля пропорций B/A.</div>
         <button class="btn btn-soft" style="width:100%;" onclick="FFS.resetArtworkCrop()">Сбросить обрезку (0%)</button>
@@ -347,7 +347,7 @@
       </div>
       <div class="canvas-wrap" id="wrap-2d">
         <canvas id="canvas2d"></canvas>
-        <input type="number" id="inline-edit" step="1" />
+        <input type="text" inputmode="decimal" id="inline-edit" step="1" />
         <div id="drag-tip"></div>
       </div>
     </div>

@@ -179,62 +179,62 @@
 
   FFS.syncStateToInputs = function () {
     const S = FFS.state;
-    $('in-A').value = S.A;
-    $('in-B').value = S.B;
+    $('in-A').value = FFS.formatNum(S.A);
+    $('in-B').value = FFS.formatNum(S.B);
     $('in-autoB').checked = !!S.autoB;
     $('in-B').disabled = !!S.autoB;
     $('in-autoB4').checked = !!S.autoB4;
     $('in-B4').disabled = !!S.autoB4;
-    $('in-B1').value = S.B1;
-    $('in-B2').value = S.B2;
-    $('in-B2tolM').value = S.B2tolM;
-    $('in-B2tolP').value = S.B2tolP;
-    $('in-B3').value = S.B3;
-    $('in-B4').value = S.B4;
-    $('in-T1').value = S.T1;
-    $('in-T2').value = S.T2;
+    $('in-B1').value = FFS.formatNum(S.B1);
+    $('in-B2').value = FFS.formatNum(S.B2);
+    $('in-B2tolM').value = FFS.formatNum(S.B2tolM);
+    $('in-B2tolP').value = FFS.formatNum(S.B2tolP);
+    $('in-B3').value = FFS.formatNum(S.B3);
+    $('in-B4').value = FFS.formatNum(S.B4);
+    $('in-T1').value = FFS.formatNum(S.T1);
+    $('in-T2').value = FFS.formatNum(S.T2);
     $('in-t1InB3').checked = S.t1InB3;
     $('lbl-B3').textContent = S.t1InB3 ? `B3 (вкл. T1, чист. ${Math.max(0, S.B3 - S.T1)})` : 'B3 (Внешний клапан)';
 
     $('in-symMode').value = S.symMode;
-    $('in-symMargin').value = S.symMargin;
+    $('in-symMargin').value = FFS.formatNum(S.symMargin);
     $('in-zones').checked = S.showZones;
     $('in-mirror2d').checked = S.mirror2d;
 
     $('in-S1').checked = S.S1;
     $('in-S2').checked = S.S2;
     $('in-S3').checked = S.S3;
-    $('in-S2off').value = S.S2off;
-    $('in-S3off').value = S.S3off;
+    $('in-S2off').value = FFS.formatNum(S.S2off);
+    $('in-S3off').value = FFS.formatNum(S.S3off);
 
     $('in-embOn').checked = S.embOn;
-    $('in-embW').value = S.embW;
+    $('in-embW').value = FFS.formatNum(S.embW);
     $('in-embAlign').value = S.embAlign;
-    for (let i = 0; i < 5; i++) $('in-E' + (i + 1)).value = S.E[i] ?? '';
+    for (let i = 0; i < 5; i++) $('in-E' + (i + 1)).value = S.E[i] == null ? '' : FFS.formatNum(S.E[i]);
 
     $('in-perfOn').checked = S.perfOn;
-    $('in-perfW').value = S.perfW;
+    $('in-perfW').value = FFS.formatNum(S.perfW);
     $('in-perfAlign').value = S.perfAlign || 'left';
-    for (let i = 0; i < 4; i++) $('in-P' + (i + 1)).value = S.P[i] ?? '';
+    for (let i = 0; i < 4; i++) $('in-P' + (i + 1)).value = S.P[i] == null ? '' : FFS.formatNum(S.P[i]);
 
     $('in-cutExtOn').checked = S.cutExtOn;
-    $('in-C1').value = S.C1; $('in-D1').value = S.D1; $('in-cutExtPat').value = S.cutExtPat;
+    $('in-C1').value = FFS.formatNum(S.C1); $('in-D1').value = FFS.formatNum(S.D1); $('in-cutExtPat').value = S.cutExtPat;
     $('in-cutIntOn').checked = S.cutIntOn;
-    $('in-C2').value = S.C2; $('in-D2').value = S.D2; $('in-cutIntPat').value = S.cutIntPat;
+    $('in-C2').value = FFS.formatNum(S.C2); $('in-D2').value = FFS.formatNum(S.D2); $('in-cutIntPat').value = S.cutIntPat;
     $('in-fgOn').checked = S.fgOn;
-    $('in-F').value = S.F; $('in-G').value = S.G;
+    $('in-F').value = FFS.formatNum(S.F); $('in-G').value = FFS.formatNum(S.G);
 
     $('in-pmOn').checked = S.pmOn;
-    $('in-pmW').value = S.pmW; $('in-pmH').value = S.pmH;
-    $('in-pmX').value = S.pmX; $('in-pmY').value = S.pmY;
+    $('in-pmW').value = FFS.formatNum(S.pmW); $('in-pmH').value = FFS.formatNum(S.pmH);
+    $('in-pmX').value = FFS.formatNum(S.pmX); $('in-pmY').value = FFS.formatNum(S.pmY);
     $('in-pmColor').value = S.pmColor;
 
     $('in-scheme').value = S.scheme;
 
     $('in-transOn').checked = !!S.transOn;
-    $('in-topSeal').value = S.topSeal;
-    $('in-botSeal').value = S.botSeal;
-    $('in-deadZone').value = S.deadZone;
+    $('in-topSeal').value = FFS.formatNum(S.topSeal);
+    $('in-botSeal').value = FFS.formatNum(S.botSeal);
+    $('in-deadZone').value = FFS.formatNum(S.deadZone);
 
     $('in-omShow2D').checked = !!S.omShow2D;
     $('in-omShow3D').checked = !!S.omShow3D;
@@ -245,21 +245,48 @@
     $('lbl-omOp3D').textContent = Math.round(S.omOpacity3D) + '%';
     $('in-omFlipX').checked = !!S.omFlipX;
     $('in-omRot180').checked = !!S.omRot180;
-    $('in-omCropL').value = S.omCropL;
-    $('in-omCropR').value = S.omCropR;
-    $('in-omCropT').value = S.omCropT;
-    $('in-omCropB').value = S.omCropB;
+    $('in-omCropL').value = FFS.formatNum(S.omCropL);
+    $('in-omCropR').value = FFS.formatNum(S.omCropR);
+    $('in-omCropT').value = FFS.formatNum(S.omCropT);
+    $('in-omCropB').value = FFS.formatNum(S.omCropB);
   };
 
-  function readNum(id, fallback, min, max) {
-    const v = parseFloat($(id).value);
-    return Number.isFinite(v) ? clamp(v, min, max) : fallback;
+  function lastOrTemplate(key, min, max) {
+    const last = FFS.state[key];
+    const tmpl = FFS.DEFAULT_STATE[key];
+    const base = Number.isFinite(last) ? last : tmpl;
+    return clamp(base, min, max);
+  }
+
+  function readNum(id, key, min, max) {
+    const raw = $(id).value.trim();
+    if (raw === '') return lastOrTemplate(key, min, max);
+    const v = FFS.parseLocaleNumber(raw);
+    if (v === Infinity) return max;
+    if (v === -Infinity) return min;
+    return Number.isFinite(v) ? clamp(v, min, max) : lastOrTemplate(key, min, max);
+  }
+
+  function readSigned(id, key, sign, min, max) {
+    const raw = $(id).value.trim();
+    if (raw === '') return lastOrTemplate(key, min, max);
+    const v = FFS.parseLocaleNumber(raw);
+    if (!Number.isFinite(v) && v !== Infinity && v !== -Infinity) return lastOrTemplate(key, min, max);
+    const signed = sign < 0 ? -Math.abs(v) : Math.abs(v);
+    return clamp(signed, min, max);
+  }
+
+  function readOffset(id, key) {
+    const raw = $(id).value.trim();
+    if (raw === '') return lastOrTemplate(key, -1e9, 1e9);
+    const v = FFS.parseLocaleNumber(raw);
+    return Number.isFinite(v) ? v : lastOrTemplate(key, -1e9, 1e9);
   }
 
   function readOptNum(id) {
     const raw = $(id).value.trim();
     if (raw === '') return null;
-    const v = parseFloat(raw);
+    const v = FFS.parseLocaleNumber(raw);
     return Number.isFinite(v) ? Math.max(0, v) : null;
   }
 
@@ -278,7 +305,7 @@
     const bb = $('badge-balance');
     if (Math.abs(diff) < 0.5) {
       bb.className = 'pill pill-ok';
-      bb.textContent = `✓ B: ${S.B} мм`;
+      bb.textContent = `✓ B: ${FFS.formatNum(S.B)} мм`;
     } else {
       bb.className = 'pill pill-err';
       bb.textContent = `⚠ Невязка B: ${diff > 0 ? '+' : ''}${diff} мм`;
@@ -288,7 +315,7 @@
     const warn3d = $('warn-3d');
     const errs3d = [];
 
-    if (S.B4 < 0) errs3d.push(`Не хватает ширины полотна B: расчётный B4 = ${S.B4} мм!`);
+    if (S.B4 < 0) errs3d.push(`Не хватает ширины полотна B: расчётный B4 = ${FFS.formatNum(S.B4)} мм!`);
     if (S.B2 >= S.B1) errs3d.push(`Фальц B2 (${S.B2}) ≥ B1 (${S.B1}): самопересечение фальцев!`);
     if (g.backOverlap < -0.5) errs3d.push(`Тыл не смыкается: разрыв ${Math.abs(Math.round(g.backOverlap))} мм (B3+B4 < B1)!`);
     if (g.b3Net > S.B1) errs3d.push(`Внешний клапан B3 (${g.b3Net}) шире рукава B1 (${S.B1})!`);
@@ -296,7 +323,7 @@
 
     if (errs3d.length) {
       bBack.className = 'pill pill-err';
-      bBack.textContent = S.B4 < 0 ? `⚠ B4 = ${S.B4} мм!` : (S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.round(g.backOverlap)} мм` : '⚠ Клапан > B1!'));
+      bBack.textContent = S.B4 < 0 ? `⚠ B4 = ${FFS.formatNum(S.B4)} мм!` : (S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.abs(Math.round(g.backOverlap))} мм` : '⚠ Клапан > B1!'));
       warn3d.innerHTML = errs3d.join('<br>');
       warn3d.style.display = 'block';
     } else if (g.backOverlap > 0.5) {
@@ -315,18 +342,21 @@
     bt.textContent = tl.text;
 
     $('geo-summary').innerHTML =
-      `Σ сегментов: <b>${g.sumB} мм</b> (B = ${S.B} мм)<br>` +
+      `Σ сегментов: <b>${FFS.formatNum(g.sumB)} мм</b> (B = ${FFS.formatNum(S.B)} мм)<br>` +
       `Ось лица B1: <b>${g.xCenter.toFixed(1)} мм</b> • B1: <b>[${g.s4}..${g.s5}]</b><br>` +
-      `Клапаны: внеш. <b>${g.b3Net}</b>` + (S.t1InB3 ? ' (T1 в B3)' : '') + ` • внутр. B4: <b>${S.B4} мм</b>` + (S.autoB4 ? ' (авто)' : '') + '<br>' +
-      `Шов S1: <b>${g.seamS1} мм</b>` +
-      (g.backOverlap > 0 ? ` • Канал до S3 (${g.seamS3}): <b>${g.backOverlap} мм</b>` : '') + '<br>' +
+      `Клапаны: внеш. <b>${FFS.formatNum(g.b3Net)}</b>` + (S.t1InB3 ? ' (T1 в B3)' : '') + ` • внутр. B4: <b>${FFS.formatNum(S.B4)} мм</b>` + (S.autoB4 ? ' (авто)' : '') + '<br>' +
+      `Шов S1: <b>${FFS.formatNum(g.seamS1)} мм</b>` +
+      (g.backOverlap > 0.5 ? ` • Канал до S3 (${FFS.formatNum(g.seamS3)}): <b>${FFS.formatNum(g.backOverlap)} мм</b>` : '') + '<br>' +
       (S.transOn ? `Раб. высота A<sub>эфф</sub>: <b>${FFS.getTransverseGeom(S).effA} мм</b> (швы ${S.topSeal}/${S.botSeal}, м/з ±${S.deadZone})<br>` : '') +
       `Оснастка: <b>${tl.detail}</b>`;
 
     const symEl = $('sym-list');
     const checks = FFS.analyzeEmbossingAndPerf(S);
     if (!checks.length) {
-      symEl.innerHTML = '<div class="sym-row"><span class="sym-muted">Нет активного тиснения / перфорации</span></div>';
+      const idle = S.embOn || S.perfOn
+        ? 'Координаты не заданы'
+        : 'Нет активного тиснения / перфорации';
+      symEl.innerHTML = `<div class="sym-row"><span class="sym-muted">${idle}</span></div>`;
     } else {
       symEl.innerHTML = checks.map(c =>
         `<div class="sym-row"><span>${c.label}</span><span class="sym-${c.status}">${c.text}</span></div>`
@@ -369,85 +399,89 @@
       $('in-B').disabled = S.autoB;
       $('in-B4').disabled = S.autoB4;
 
-      S.A = readNum('in-A', 700, 150, 2500);
-      S.B1 = readNum('in-B1', 300, 80, 1500);
-      S.B2 = readNum('in-B2', 100, 10, 600);
-      S.B2tolM = -Math.abs(parseFloat($('in-B2tolM').value) || 0);
-      S.B2tolP = Math.abs(parseFloat($('in-B2tolP').value) || 0);
+      S.A = readNum('in-A', 'A', 150, 2500);
+      S.B1 = readNum('in-B1', 'B1', 80, 1500);
+      S.B2 = readNum('in-B2', 'B2', 10, 600);
+      S.B2tolM = readSigned('in-B2tolM', 'B2tolM', -1, -30, 0);
+      S.B2tolP = readSigned('in-B2tolP', 'B2tolP', 1, 0, 30);
       S.t1InB3 = $('in-t1InB3').checked;
-      S.T1 = readNum('in-T1', 8, 0, 150);
-      S.T2 = readNum('in-T2', 32, 0, 150);
-      S.B3 = readNum('in-B3', 150, S.t1InB3 ? S.T1 + 10 : 10, 1200);
+      S.T1 = readNum('in-T1', 'T1', 0, 150);
+      S.T2 = readNum('in-T2', 'T2', 0, 150);
+      S.B3 = readNum('in-B3', 'B3', S.t1InB3 ? S.T1 + 10 : 10, 1200);
       $('lbl-B3').textContent = S.t1InB3 ? `B3 (вкл. T1, чист. ${Math.max(0, S.B3 - S.T1)})` : 'B3 (Внешний клапан)';
 
       if (S.autoB4) {
-        S.B = readNum('in-B', S.B, 200, 3000);
-        S.B4 = Math.round(FFS.calcAutoB4(S));
-        $('in-B4').value = S.B4;
+        S.B = readNum('in-B', 'B', 200, 3000);
+        S.B4 = FFS.calcAutoB4(S);
+        $('in-B4').value = FFS.formatNum(S.B4);
       } else if (S.autoB) {
-        S.B4 = readNum('in-B4', 150, 0, 1200);
-        S.B = Math.round(FFS.getGeom(S).sumB);
-        $('in-B').value = S.B;
+        S.B4 = readNum('in-B4', 'B4', 0, 1200);
+        S.B = FFS.getGeom(S).sumB;
+        $('in-B').value = FFS.formatNum(S.B);
       } else {
-        S.B = readNum('in-B', S.B, 200, 3000);
-        S.B4 = readNum('in-B4', 150, 0, 1200);
+        S.B = readNum('in-B', 'B', 200, 3000);
+        S.B4 = readNum('in-B4', 'B4', 0, 1200);
       }
 
       S.symMode = $('in-symMode').value;
-      S.symMargin = readNum('in-symMargin', 15, 0, 200);
+      S.symMargin = readNum('in-symMargin', 'symMargin', 0, 200);
       S.showZones = $('in-zones').checked;
       S.mirror2d = $('in-mirror2d').checked;
 
       S.S1 = $('in-S1').checked;
       S.S2 = $('in-S2').checked;
       S.S3 = $('in-S3').checked;
-      S.S2off = parseFloat($('in-S2off').value) || 0;
-      S.S3off = parseFloat($('in-S3off').value) || 0;
+      S.S2off = readOffset('in-S2off', 'S2off');
+      S.S3off = readOffset('in-S3off', 'S3off');
 
       S.embOn = $('in-embOn').checked;
-      S.embW = readNum('in-embW', 60, 5, 200);
+      S.embW = readNum('in-embW', 'embW', 5, 200);
       S.embAlign = $('in-embAlign').value;
       for (let i = 0; i < 5; i++) S.E[i] = readOptNum('in-E' + (i + 1));
 
       S.perfOn = $('in-perfOn').checked;
-      S.perfW = readNum('in-perfW', 25, 5, 200);
+      S.perfW = readNum('in-perfW', 'perfW', 5, 200);
       S.perfAlign = $('in-perfAlign').value;
       for (let i = 0; i < 4; i++) S.P[i] = readOptNum('in-P' + (i + 1));
 
       S.cutExtOn = $('in-cutExtOn').checked;
-      S.C1 = readNum('in-C1', 50, 0, S.B); S.D1 = readNum('in-D1', 70, 0, S.A);
+      S.C1 = readNum('in-C1', 'C1', 0, S.B); S.D1 = readNum('in-D1', 'D1', 0, S.A);
       S.cutExtPat = $('in-cutExtPat').value;
       S.cutIntOn = $('in-cutIntOn').checked;
-      S.C2 = readNum('in-C2', 650, 0, S.B); S.D2 = readNum('in-D2', 250, 0, S.A);
+      S.C2 = readNum('in-C2', 'C2', 0, S.B); S.D2 = readNum('in-D2', 'D2', 0, S.A);
       S.cutIntPat = $('in-cutIntPat').value;
       S.fgOn = $('in-fgOn').checked;
-      S.F = readNum('in-F', 700, 0, S.B); S.G = readNum('in-G', 200, 0, S.A);
+      S.F = readNum('in-F', 'F', 0, S.B); S.G = readNum('in-G', 'G', 0, S.A);
 
       S.pmOn = $('in-pmOn').checked;
-      S.pmW = readNum('in-pmW', 30, 2, 150); S.pmH = readNum('in-pmH', 15, 2, 150);
-      S.pmX = readNum('in-pmX', 50, 0, S.B); S.pmY = readNum('in-pmY', 20, 0, S.A);
+      S.pmW = readNum('in-pmW', 'pmW', 2, 150); S.pmH = readNum('in-pmH', 'pmH', 2, 150);
+      S.pmX = readNum('in-pmX', 'pmX', 0, S.B); S.pmY = readNum('in-pmY', 'pmY', 0, S.A);
       S.pmColor = $('in-pmColor').value;
 
       S.scheme = $('in-scheme').value;
 
       S.transOn = $('in-transOn').checked;
-      S.topSeal = readNum('in-topSeal', 20, 0, 150);
-      S.botSeal = readNum('in-botSeal', 20, 0, 150);
-      S.deadZone = readNum('in-deadZone', 10, 0, 100);
+      S.topSeal = readNum('in-topSeal', 'topSeal', 0, 150);
+      S.botSeal = readNum('in-botSeal', 'botSeal', 0, 150);
+      S.deadZone = readNum('in-deadZone', 'deadZone', 0, 100);
 
       S.omShow2D = $('in-omShow2D').checked;
       S.omShow3D = $('in-omShow3D').checked;
       S.omHideLabels3D = $('in-omHideLabels3D').checked;
-      S.omOpacity2D = readNum('in-omOpacity2D', 55, 0, 100);
+      S.omOpacity2D = readNum('in-omOpacity2D', 'omOpacity2D', 0, 100);
       $('lbl-omOp2D').textContent = Math.round(S.omOpacity2D) + '%';
-      S.omOpacity3D = readNum('in-omOpacity3D', 100, 0, 100);
+      S.omOpacity3D = readNum('in-omOpacity3D', 'omOpacity3D', 0, 100);
       $('lbl-omOp3D').textContent = Math.round(S.omOpacity3D) + '%';
       S.omFlipX = $('in-omFlipX').checked;
       S.omRot180 = $('in-omRot180').checked;
-      S.omCropL = readNum('in-omCropL', 0, 0, 49);
-      S.omCropR = readNum('in-omCropR', 0, 0, 49);
-      S.omCropT = readNum('in-omCropT', 0, 0, 49);
-      S.omCropB = readNum('in-omCropB', 0, 0, 49);
+      S.omCropL = readNum('in-omCropL', 'omCropL', 0, 49);
+      S.omCropR = readNum('in-omCropR', 'omCropR', 0, 49);
+      S.omCropT = readNum('in-omCropT', 'omCropT', 0, 49);
+      S.omCropB = readNum('in-omCropB', 'omCropB', 0, 49);
+      const cropLR = FFS.normalizeCropPair(S.omCropL, S.omCropR);
+      const cropTB = FFS.normalizeCropPair(S.omCropT, S.omCropB);
+      S.omCropL = cropLR[0]; S.omCropR = cropLR[1];
+      S.omCropT = cropTB[0]; S.omCropB = cropTB[1];
 
       if (isBlur) FFS.syncStateToInputs();
       const scaleChanged = Math.abs(Math.max(S.A, S.B) - prevMaxDim) > 40;
