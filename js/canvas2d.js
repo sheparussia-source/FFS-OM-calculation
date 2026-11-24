@@ -50,23 +50,26 @@
     let ox, oy, scale, oxRight;
     if (dragState && dragState.frozenLayout) {
       ({ ox, oy, scale, oxRight } = dragState.frozenLayout);
+      const spanB = Math.max(S.B, g.sumB, 1);
       if (S.mirror2d) {
-        ox = oxRight - S.B * scale;
+        ox = oxRight - spanB * scale;
       } else {
-        oxRight = ox + S.B * scale;
+        oxRight = ox + spanB * scale;
       }
     } else {
       const padL = 46, padR = 78, padT = 56, padB = 104;
-      const effB = Math.max(S.B, g.sumB, 100);
+      const filmB = Math.max(S.B, g.sumB, 1);
+      const effB = Math.max(filmB, 100);
       const effA = Math.max(S.A, 100);
       const baseScale = Math.min((W - padL - padR) / effB, (H - padT - padB) / effA);
       scale = Math.max(0.04, baseScale * zoom2d);
-      ox = (W - padR + padL - S.B * scale) / 2 + pan2dX;
+      ox = (W - padR + padL - filmB * scale) / 2 + pan2dX;
       oy = (H - padB + padT - S.A * scale) / 2 + pan2dY;
-      oxRight = ox + S.B * scale;
+      oxRight = ox + filmB * scale;
     }
 
-    const webW = S.B * scale;
+    const filmB = Math.max(S.B, g.sumB, 1);
+    const webW = filmB * scale;
     const webH = S.A * scale;
     lastLayout = { ox, oy, scale, webW, webH, oxRight };
 
@@ -138,6 +141,17 @@
       const r = rectX(g.sumB, S.B);
       ctx2d.fillStyle = 'rgba(239,68,68,0.12)';
       ctx2d.fillRect(r.x, oy, r.w, webH);
+    } else if (g.sumB > S.B + 0.5) {
+      const mark = x2p(S.B);
+      ctx2d.save();
+      ctx2d.strokeStyle = '#dc2626';
+      ctx2d.lineWidth = 1.2;
+      ctx2d.setLineDash([4, 3]);
+      ctx2d.beginPath();
+      ctx2d.moveTo(mark, oy);
+      ctx2d.lineTo(mark, oy + webH);
+      ctx2d.stroke();
+      ctx2d.restore();
     }
 
     // Uploaded OM artwork overlay (XOR flip keeps artwork locked to film T1..T2 in both normal & mirrored 2D)
@@ -438,10 +452,11 @@
       const key = sg.dimKey || sg.key;
       const aMm = (sg.key === 'B3' && S.t1InB3) ? 0 : sg.a;
       const bMm = sg.b;
-      const val = sg.key === 'B3' ? S.B3 : (sg.gusset ? S.B2 : (sg.key === 'T1' ? S.T1 : (sg.key === 'B1' ? S.B1 : (sg.key === 'B4' ? S.B4 : S.T2))));
+      const raw = sg.key === 'B3' ? S.B3 : (sg.gusset ? S.B2 : (sg.key === 'T1' ? S.T1 : (sg.key === 'B1' ? S.B1 : (sg.key === 'B4' ? S.B4 : S.T2))));
+      const val = FFS.formatNum(raw);
       const p1 = x2p(aMm), p2 = x2p(bMm);
       const x1 = Math.min(p1, p2), x2 = Math.max(p1, p2);
-      const lbl = (sg.gusset && (x2 - x1) > 84) ? `B2:${val} (${S.B2tolM}/+${S.B2tolP})` : `${key}:${val}`;
+      const lbl = (sg.gusset && (x2 - x1) > 84) ? `B2:${val} (${FFS.formatNum(S.B2tolM)}/+${FFS.formatNum(S.B2tolP)})` : `${key}:${val}`;
       ctx2d.font = '600 10px monospace';
       const tw = ctx2d.measureText(lbl).width + 10;
       return { x1, x2, mx: (x1 + x2) / 2, tw, lbl, key, val, forceTier1: (sg.key === 'T1' && S.t1InB3) };
@@ -460,11 +475,13 @@
 
     // Total B Dimension Line
     const dimY2 = oy + webH + 70;
-    drawDimH(ox, ox + webW, dimY2, dimY2, `B = ${S.B} мм${S.mirror2d ? ' (T1 справа)' : ''}`, '#2563eb', 'B', S.B);
+    const bEdge1 = x2p(0);
+    const bEdge2 = x2p(S.B);
+    drawDimH(Math.min(bEdge1, bEdge2), Math.max(bEdge1, bEdge2), dimY2, dimY2, `B = ${FFS.formatNum(S.B)} мм${S.mirror2d ? ' (T1 справа)' : ''}`, '#2563eb', 'B', FFS.formatNum(S.B));
 
     // Right Height A Dimension Line (offset past max(webW, sumB) so manual B < sumB never collides)
     const rightMostPx = Math.max(ox + webW, x2p(0), x2p(g.sumB));
-    drawDimV(oy, oy + webH, rightMostPx + 26, `A = ${S.A} мм`, '#2563eb', 'A', S.A);
+    drawDimV(oy, oy + webH, rightMostPx + 26, `A = ${FFS.formatNum(S.A)} мм`, '#2563eb', 'A', FFS.formatNum(S.A));
   };
 
   function drawCutMatrix2D(cx, cy, scale, pat, color, label) {
@@ -574,23 +591,28 @@
   function commitInlineEdit() {
     if (!inlineTarget) return;
     const S = FFS.state;
-    const v = parseFloat(inlineInput.value);
-    if (Number.isFinite(v) && v >= 0) {
+    const v = FFS.parseLocaleNumber(inlineInput.value);
+    if (Number.isFinite(v)) {
       FFS.ui.symNote = '';
+      const lim = {
+        A: [150, 2500], B1: [80, 1500], B2: [10, 600],
+        T1: [0, 150], T2: [0, 150],
+        B3: [S.t1InB3 ? S.T1 + 10 : 10, 1200]
+      };
       if (inlineTarget.type === 'dimArr') {
-        S[inlineTarget.arr][inlineTarget.idx] = clamp(Math.round(v), 0, S.B);
+        S[inlineTarget.arr][inlineTarget.idx] = clamp(v, 0, S.B);
       } else if (inlineTarget.key === 'B') {
         S.autoB = false;
-        S.B = clamp(Math.round(v), 200, 3000);
+        S.B = clamp(v, 200, 3000);
         if (S.autoB4) FFS.recalcBalance(S);
       } else if (inlineTarget.key === 'B4') {
         S.autoB4 = false;
-        S.B4 = clamp(Math.round(v), 0, 1200);
+        S.B4 = clamp(v, 0, 1200);
         if (S.autoB) FFS.recalcBalance(S);
       } else {
         const k = inlineTarget.key;
-        const minV = k.startsWith('T') ? 0 : (k === 'A' ? 150 : (k === 'B1' ? 80 : (k === 'B3' && S.t1InB3 ? S.T1 + 10 : 10)));
-        S[k] = Math.max(minV, Math.round(v));
+        const pair = lim[k] || [0, Math.max(S.B, S.A, 1)];
+        S[k] = clamp(v, pair[0], pair[1]);
         FFS.recalcBalance(S);
       }
       FFS.syncStateToInputs();

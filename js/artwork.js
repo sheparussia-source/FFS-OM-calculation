@@ -19,18 +19,12 @@
     const st = S || FFS.state;
     const nw = FFS.artwork.naturalW || 1;
     const nh = FFS.artwork.naturalH || 1;
-    let cL = clamp(st.omCropL || 0, 0, 49) / 100;
-    let cR = clamp(st.omCropR || 0, 0, 49) / 100;
-    let cT = clamp(st.omCropT || 0, 0, 49) / 100;
-    let cB = clamp(st.omCropB || 0, 0, 49) / 100;
-    if (cL + cR > 0.92) {
-      const k = 0.92 / (cL + cR);
-      cL *= k; cR *= k;
-    }
-    if (cT + cB > 0.92) {
-      const k = 0.92 / (cT + cB);
-      cT *= k; cB *= k;
-    }
+    const lr = FFS.normalizeCropPair(st.omCropL || 0, st.omCropR || 0);
+    const tb = FFS.normalizeCropPair(st.omCropT || 0, st.omCropB || 0);
+    const cL = lr[0] / 100;
+    const cR = lr[1] / 100;
+    const cT = tb[0] / 100;
+    const cB = tb[1] / 100;
     return {
       sx: nw * cL,
       sy: nh * cT,

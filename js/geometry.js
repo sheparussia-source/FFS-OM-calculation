@@ -10,17 +10,22 @@
     const s1L = st.T1;
     const b3Net = st.t1InB3 ? Math.max(0, st.B3 - st.T1) : st.B3;
     const fixed = s1L + b3Net + 2 * st.B2 + st.B1 + st.T2;
-    return Math.round((st.B - fixed) * 10) / 10;
+    return st.B - fixed;
   };
 
   FFS.recalcBalance = function (S) {
     const st = S || FFS.state;
     if (st.autoB4) {
       st.autoB = false;
-      st.B4 = Math.round(FFS.calcAutoB4(st));
+      st.B4 = FFS.calcAutoB4(st);
     } else if (st.autoB) {
-      st.B = Math.round(FFS.getGeom(st).sumB);
+      st.B = FFS.getGeom(st).sumB;
     }
+  };
+
+  FFS.finalizeAutoBalance = function (st) {
+    if (st) FFS.recalcBalance(st);
+    return st;
   };
 
   FFS.getGeom = function (S) {
@@ -38,7 +43,8 @@
     const halfPerim = st.B1 + st.B2;
     const backOverlap = b3Net + st.B4 - st.B1;
     const seamS1 = s1L + 2 * st.B1 + 2 * st.B2;
-    const seamS3 = (st.S3off === 0 && backOverlap > 0) ? s8 : (seamS1 + st.S3off);
+    // 0 всегда край B4 (s8), как в подписи поля. Пустое поле сюда не приходит.
+    const seamS3 = st.S3off === 0 ? s8 : (seamS1 + st.S3off);
     const seamS2 = seamS1 + st.S2off;
     return { sumB, s1L, b3Net, b4Eff, s2, s4, s5, s7, s8, xCenter, halfPerim, backOverlap, seamS1, seamS2, seamS3 };
   };
@@ -69,10 +75,12 @@
   FFS.evalPolytexTooling = function (S) {
     const st = S || FFS.state;
     const b2Max = st.B2 + Math.max(0, st.B2tolP);
-    if (st.B1 >= 210 && st.B1 <= 289 && b2Max <= 120) {
+    // Граница Small/Medium стыкуется на 290: дробь 289.4 не выпадает в «Вне S/M».
+    // Отдельного класса Large в расчёте нет, поэтому у Medium нет верхней границы B1.
+    if (st.B1 >= 210 && st.B1 < 290 && b2Max <= 120) {
       return { cls: 'pill-info', text: 'POLYTEX: Small', detail: `Small (B1≥210, B2≤120; факт B2+доп=${b2Max} мм)` };
     }
-    if (st.B1 >= 260 && st.B1 <= 289 && st.B2 <= 200) {
+    if (st.B1 >= 260 && st.B1 < 290 && st.B2 <= 200) {
       const warn = b2Max > 200 ? `, B2+доп=${b2Max}!` : '';
       return { cls: 'pill-warn', text: `POLYTEX: Med (пред.${warn})`, detail: `Предел Medium (B1 260..289 мм, B2+доп=${b2Max} мм)` };
     }
@@ -88,11 +96,54 @@
     return { cls: 'pill-warn', text: 'POLYTEX: Вне S/M', detail: `Не попадает в Small/Medium (нужна Large / проверка оснастки)` };
   };
 
+  FFS.pushStripHits = function (rows, name, b, st, g) {
+    const tol = Math.max(Math.abs(st.B2tolM), Math.abs(st.B2tolP));
+    if (b.left < 0 || b.right > st.B) {
+      rows.push({ label: `${name} край полотна`, status: 'err', text: 'Вылет за B!' });
+      return;
+    }
+    const hitL = b.right > g.s2 && b.left < g.s4;
+    const hitR = b.right > g.s5 && b.left < g.s7;
+    if (hitL || hitR) {
+      rows.push({ label: `${name} ↔ Фальц B2`, status: 'err', text: 'Наезд на фальц!' });
+    } else {
+      const gaps = [
+        Math.abs(b.right - g.s2), Math.abs(b.left - g.s4),
+        Math.abs(b.right - g.s5), Math.abs(b.left - g.s7)
+      ];
+      const minGap = Math.round(Math.min(...gaps) * 10) / 10;
+      if (minGap < tol) {
+        rows.push({ label: `${name} до фальца`, status: 'warn', text: `${minGap} мм (< ±${tol})` });
+      }
+    }
+    if (b.left < g.s1L || b.right > g.s8) {
+      rows.push({ label: `${name} ↔ Кромка T`, status: 'err', text: 'Наезд на T1/T2!' });
+    } else if (b.left < g.s1L + st.T2) {
+      const ov = Math.round((g.s1L + st.T2 - b.left) * 10) / 10;
+      rows.push({ label: `${name} ↔ Подгиб T2`, status: 'warn', text: `Заход ${ov} мм` });
+    }
+    if (g.backOverlap > 0.5 && b.right > g.seamS1 && b.left < g.s8) {
+      if (b.left < g.seamS1) {
+        rows.push({ label: `${name} ↔ Шов S1`, status: 'err', text: 'Пересекает шов S1!' });
+      } else {
+        rows.push({ label: `${name} ↔ Канал S1–S3`, status: 'warn', text: 'Внутри канала S1–S3' });
+      }
+    }
+  };
+
+  FFS.markExtent = function (rows, label, x0, x1, y0, y1, st) {
+    const web = st || FFS.state;
+    const overX = x0 < -0.1 || x1 > web.B + 0.1;
+    const overY = y0 < -0.1 || y1 > web.A + 0.1;
+    if (overX || overY) {
+      rows.push({ label, status: 'err', text: 'Вылет за полотно!' });
+    }
+  };
+
   FFS.analyzeEmbossingAndPerf = function (S) {
     const st = S || FFS.state;
     const g = FFS.getGeom(st);
     const rows = [];
-    const tol = Math.max(Math.abs(st.B2tolM), Math.abs(st.B2tolP));
 
     if (FFS.ui.symNote) {
       rows.push({ label: 'Автоподбор', status: 'warn', text: FFS.ui.symNote });
@@ -140,42 +191,8 @@
         rows.push({ label: 'Симметрия тиснения', status: 'muted', text: 'Не требуется' });
       }
 
-      // Physical collision checks (active in ALL modes)
       active.forEach(item => {
-        const b = item.b;
-        const name = `E${item.i + 1}`;
-
-        if (b.left < 0 || b.right > st.B) {
-          rows.push({ label: `${name} край полотна`, status: 'err', text: 'Вылет за B!' });
-          return;
-        }
-        const hitL = b.right > g.s2 && b.left < g.s4;
-        const hitR = b.right > g.s5 && b.left < g.s7;
-        if (hitL || hitR) {
-          rows.push({ label: `${name} ↔ Фальц B2`, status: 'err', text: 'Наезд на фальц!' });
-        } else {
-          const gaps = [
-            Math.abs(b.right - g.s2), Math.abs(b.left - g.s4),
-            Math.abs(b.right - g.s5), Math.abs(b.left - g.s7)
-          ];
-          const minGap = Math.round(Math.min(...gaps) * 10) / 10;
-          if (minGap < tol) {
-            rows.push({ label: `${name} до фальца`, status: 'warn', text: `${minGap} мм (< ±${tol})` });
-          }
-        }
-        if (b.left < g.s1L || b.right > g.s8) {
-          rows.push({ label: `${name} ↔ Кромка T`, status: 'err', text: 'Наезд на T1/T2!' });
-        } else if (b.left < g.s1L + st.T2) {
-          const ov = Math.round((g.s1L + st.T2 - b.left) * 10) / 10;
-          rows.push({ label: `${name} ↔ Подгиб T2`, status: 'warn', text: `Заход ${ov} мм` });
-        }
-        if (g.backOverlap > 0.5 && b.right > g.seamS1 && b.left < g.s8) {
-          if (b.left < g.seamS1) {
-            rows.push({ label: `${name} ↔ Шов S1`, status: 'err', text: 'Пересекает шов S1!' });
-          } else {
-            rows.push({ label: `${name} ↔ Канал S1–S3`, status: 'warn', text: 'Внутри канала S1–S3' });
-          }
-        }
+        FFS.pushStripHits(rows, `E${item.i + 1}`, item.b, st, g);
       });
     }
 
@@ -184,9 +201,7 @@
       st.P.forEach((v, i) => {
         if (v === null) return;
         const b = FFS.getStripBounds(v, st.perfW, pAlign);
-        if (b.left < 0 || b.right > st.B) {
-          rows.push({ label: `P${i + 1} край полотна`, status: 'err', text: 'Вылет за B!' });
-        }
+        FFS.pushStripHits(rows, `P${i + 1}`, b, st, g);
       });
 
       [[0, 1], [2, 3]].forEach(([i, j]) => {
@@ -201,6 +216,27 @@
           });
         }
       });
+    }
+
+    const cutBox = (pat, cx, cy) => {
+      const parsed = FFS.parseMatrix(pat);
+      const halfW = ((parsed.cols - 1) * 7) / 2;
+      const h = (parsed.rows - 1) * 14 + 9;
+      return { x0: cx - halfW, x1: cx + halfW, y0: cy, y1: cy + h };
+    };
+    if (st.pmOn) {
+      FFS.markExtent(rows, 'Фотометка', st.pmX, st.pmX + st.pmW, st.pmY, st.pmY + st.pmH, st);
+    }
+    if (st.cutExtOn) {
+      const box = cutBox(st.cutExtPat, st.C1, st.D1);
+      FFS.markExtent(rows, 'Разрезы C1/D1', box.x0, box.x1, box.y0, box.y1, st);
+    }
+    if (st.cutIntOn) {
+      const box = cutBox(st.cutIntPat, st.C2, st.D2);
+      FFS.markExtent(rows, 'Разрезы C2/D2', box.x0, box.x1, box.y0, box.y1, st);
+    }
+    if (st.fgOn) {
+      FFS.markExtent(rows, 'Тиснение F/G', st.F - 14, st.F + 14, st.G, st.G + 95, st);
     }
 
     if (st.transOn) {
@@ -293,22 +329,24 @@
     const pAlign = st.perfAlign || 'left';
     const shift = pAlign === 'center' ? W / 2 : 0;
     const lim = leftVal => Math.round(clamp(leftVal, 0, Math.max(0, st.B - W)) + shift);
+    const mirrorTo = (src, dst) => {
+      const c = FFS.getStripBounds(st.P[src], W, pAlign).center;
+      const cm = 2 * g.xCenter - c;
+      st.P[dst] = lim(cm - W / 2);
+    };
 
-    if (st.P[0] === null && st.P[1] === null) {
-      st.perfOn = true;
-      const cL = g.s2 + st.B2 / 2;
-      const cR = g.s5 + st.B2 / 2;
-      st.P[0] = lim(cL - W / 2);
-      st.P[1] = lim(cR - W / 2);
-    } else {
-      [[0, 1], [2, 3]].forEach(([i, j]) => {
-        if (st.P[i] !== null) {
-          const ci = FFS.getStripBounds(st.P[i], W, pAlign).center;
-          const cj = 2 * g.xCenter - ci;
-          st.P[j] = lim(cj - W / 2);
-        }
-      });
-    }
+    st.perfOn = true;
+    [[0, 1], [2, 3]].forEach(([i, j]) => {
+      if (st.P[i] !== null && st.P[j] === null) mirrorTo(i, j);
+      else if (st.P[i] === null && st.P[j] !== null) mirrorTo(j, i);
+      else if (st.P[i] !== null && st.P[j] !== null) mirrorTo(i, j);
+      else if (i === 0) {
+        const cL = g.s2 + st.B2 / 2;
+        const cR = g.s5 + st.B2 / 2;
+        st.P[0] = lim(cL - W / 2);
+        st.P[1] = lim(cR - W / 2);
+      }
+    });
 
     if (typeof FFS.syncStateToInputs === 'function') FFS.syncStateToInputs();
     if (typeof FFS.updateAll === 'function') FFS.updateAll(false);
@@ -389,7 +427,7 @@
   FFS.getProfilePanels = function (S) {
     const st = S || FFS.state;
     const g = FFS.getGeom(st);
-    const maxS = Math.max(st.B, 1);
+    const maxS = Math.max(st.B, g.sumB, 1);
     const cuts = [0, g.s2, g.s2 + st.B2 / 2, g.s4, g.s5, g.s5 + st.B2 / 2, g.s7, maxS];
     const panels = [];
 

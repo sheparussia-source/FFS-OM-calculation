@@ -20,6 +20,59 @@
 
   FFS.$ = function (id) { return document.getElementById(id); };
   FFS.clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+
+  // Запятая и точка - десятичные разделители. Пробел между разрядами снимается.
+  FFS.parseLocaleNumber = function (raw) {
+    if (typeof raw === 'number') return raw;
+    if (raw == null) return NaN;
+    let s = String(raw).trim();
+    if (!s) return NaN;
+    s = s.replace(/\s+/g, '');
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    if (lastComma !== -1 && lastDot !== -1) {
+      if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (lastComma !== -1) {
+      s = s.replace(',', '.');
+    }
+    const m = s.match(/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
+    if (!m) return NaN;
+    return Number(m[0]);
+  };
+
+  FFS.formatNum = function (n) {
+    if (!Number.isFinite(n)) return '';
+    return String(Math.round(n * 10000) / 10000);
+  };
+
+  FFS.normalizeCropPair = function (a, b) {
+    let x = FFS.clamp(FFS.parseLocaleNumber(a), 0, 49);
+    let y = FFS.clamp(FFS.parseLocaleNumber(b), 0, 49);
+    if (!Number.isFinite(x)) x = 0;
+    if (!Number.isFinite(y)) y = 0;
+    if (x + y > 92) {
+      const k = 92 / (x + y);
+      x = Math.round(x * k * 10) / 10;
+      y = Math.round(y * k * 10) / 10;
+      if (x + y > 92) {
+        const over = Math.round((x + y - 92) * 10) / 10;
+        if (x >= y) x = Math.round((x - over) * 10) / 10;
+        else y = Math.round((y - over) * 10) / 10;
+      }
+    }
+    return [x, y];
+  };
+
+  FFS.NUM_RANGES = {
+    A: [150, 2500], B: [200, 3000], B1: [80, 1500], B2: [10, 600],
+    B3: [10, 1200], B4: [0, 1200], T1: [0, 150], T2: [0, 150],
+    symMargin: [0, 200], embW: [5, 200], perfW: [5, 200],
+    topSeal: [0, 150], botSeal: [0, 150], deadZone: [0, 100],
+    pmW: [2, 150], pmH: [2, 150],
+    omOpacity2D: [0, 100], omOpacity3D: [0, 100],
+    omCropL: [0, 49], omCropR: [0, 49], omCropT: [0, 49], omCropB: [0, 49]
+  };
   FFS.smoothstep = function (e0, e1, x) {
     const t = FFS.clamp((x - e0) / (e1 - e0), 0, 1);
     return t * t * (3 - 2 * t);
@@ -62,7 +115,14 @@
     const strKeys = ['symMode', 'embAlign', 'perfAlign', 'cutExtPat', 'cutIntPat', 'pmColor', 'scheme'];
 
     numKeys.forEach(k => {
-      if (typeof raw[k] === 'number' && Number.isFinite(raw[k])) base[k] = raw[k];
+      const n = FFS.parseLocaleNumber(raw[k]);
+      if (!Number.isFinite(n) && n !== Infinity && n !== -Infinity) return;
+      if (k === 'B2tolM') base[k] = FFS.clamp(-Math.abs(n), -30, 0);
+      else if (k === 'B2tolP') base[k] = FFS.clamp(Math.abs(n), 0, 30);
+      else if (FFS.NUM_RANGES[k]) {
+        const [lo, hi] = FFS.NUM_RANGES[k];
+        base[k] = FFS.clamp(n, lo, hi);
+      } else if (Number.isFinite(n)) base[k] = n;
     });
     boolKeys.forEach(k => {
       if (typeof raw[k] === 'boolean') base[k] = raw[k];
@@ -82,12 +142,28 @@
     if (!['left', 'center'].includes(base.perfAlign)) base.perfAlign = 'left';
     if (!['A1', 'A2'].includes(base.scheme)) base.scheme = 'A1';
 
+    const optNum = v => {
+      const n = FFS.parseLocaleNumber(v);
+      return Number.isFinite(n) ? Math.max(0, n) : null;
+    };
     if (Array.isArray(raw.E)) {
-      base.E = [0, 1, 2, 3, 4].map(i => (typeof raw.E[i] === 'number' && Number.isFinite(raw.E[i]) && raw.E[i] >= 0) ? raw.E[i] : null);
+      base.E = [0, 1, 2, 3, 4].map(i => optNum(raw.E[i]));
     }
     if (Array.isArray(raw.P)) {
-      base.P = [0, 1, 2, 3].map(i => (typeof raw.P[i] === 'number' && Number.isFinite(raw.P[i]) && raw.P[i] >= 0) ? raw.P[i] : null);
+      base.P = [0, 1, 2, 3].map(i => optNum(raw.P[i]));
     }
+
+    const b3min = base.t1InB3 ? base.T1 + 10 : 10;
+    base.B3 = FFS.clamp(base.B3, b3min, 1200);
+    if (typeof FFS.finalizeAutoBalance === 'function') FFS.finalizeAutoBalance(base);
+    ['C1', 'C2', 'F', 'pmX'].forEach(k => { base[k] = FFS.clamp(base[k], 0, base.B); });
+    ['D1', 'D2', 'G', 'pmY'].forEach(k => { base[k] = FFS.clamp(base[k], 0, base.A); });
+    base.E = base.E.map(v => (v === null ? null : FFS.clamp(v, 0, base.B)));
+    base.P = base.P.map(v => (v === null ? null : FFS.clamp(v, 0, base.B)));
+    const lr = FFS.normalizeCropPair(base.omCropL, base.omCropR);
+    const tb = FFS.normalizeCropPair(base.omCropT, base.omCropB);
+    base.omCropL = lr[0]; base.omCropR = lr[1];
+    base.omCropT = tb[0]; base.omCropB = tb[1];
     return base;
   };
 
