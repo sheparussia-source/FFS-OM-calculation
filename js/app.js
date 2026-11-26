@@ -351,7 +351,9 @@
       `Оснастка: <b>${tl.detail}</b>`;
 
     const symEl = $('sym-list');
-    const checks = FFS.analyzeEmbossingAndPerf(S);
+    const checks = FFS.analyzeEmbossingAndPerf(S).concat(
+      typeof FFS.analyzeSeamArtwork === 'function' ? FFS.analyzeSeamArtwork(S) : []
+    );
     if (!checks.length) {
       const idle = S.embOn || S.perfOn
         ? 'Координаты не заданы'
