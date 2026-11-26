@@ -56,6 +56,7 @@
   };
 
   FFS.loadDefaultTemplate = function () {
+    FFS.restoreArtwork(null);
     FFS.state = FFS.cloneDefaultState();
     FFS.ui.activePresetId = '';
     FFS.ui.symNote = '';
@@ -75,6 +76,7 @@
       FFS.loadDefaultTemplate();
       return;
     }
+    FFS.restoreArtwork(preset.artwork || null);
     FFS.state = FFS.sanitizeState(preset.data);
     FFS.ui.activePresetId = preset.id;
     FFS.ui.symNote = '';
@@ -120,7 +122,7 @@
     modal.setAttribute('aria-hidden', 'true');
   };
 
-  FFS.confirmSavePreset = function () {
+  FFS.confirmSavePreset = async function () {
     const inp = $('preset-name-input');
     if (!inp) return;
     const name = inp.value.trim();
@@ -128,30 +130,31 @@
       inp.focus();
       return;
     }
-    const res = FFS.saveCurrentAsPreset(name);
+    const res = await FFS.saveCurrentAsPreset(name);
     if (!res) return;
     FFS.ui.activePresetId = res.preset.id;
     FFS.renderPresetSelect();
     FFS.closeSavePresetModal();
     if (!res.stored) {
-      FFS.showToast(`Сохранено в сессии (localStorage недоступен — используйте Экспорт)`);
+      FFS.showToast(`Сохранено только в этой сессии. Используйте экспорт JSON для сохранения макета и параметров.`);
     } else {
       FFS.showToast(res.updated ? `Пресет «${res.preset.name}» обновлён` : `Пресет «${res.preset.name}» сохранён`);
     }
   };
 
-  FFS.deleteSelectedPreset = function () {
+  FFS.deleteSelectedPreset = async function () {
     if (!FFS.ui.activePresetId) return;
     const cur = FFS.getPresetById(FFS.ui.activePresetId);
     if (!cur) return;
     if (!root.confirm(`Удалить пресет «${cur.name}»?`)) return;
-    FFS.deletePresetById(cur.id);
+    if (!await FFS.deletePresetById(cur.id)) { FFS.showToast('Не удалось удалить пресет'); return; }
     FFS.ui.activePresetId = '';
     FFS.renderPresetSelect();
     FFS.showToast(`Пресет «${cur.name}» удалён`);
   };
 
-  FFS.exportPresetsJSON = function () {
+  FFS.exportPresetsJSON = async function () {
+    await FFS.presetsReady;
     if (!FFS.savedPresets.length) {
       FFS.showToast('Нет сохранённых пресетов для экспорта');
       return;
@@ -213,6 +216,7 @@
     for (let i = 0; i < 5; i++) $('in-E' + (i + 1)).value = S.E[i] == null ? '' : FFS.formatNum(S.E[i]);
 
     $('in-perfOn').checked = S.perfOn;
+    $('in-perfAllowGusset').checked = S.perfAllowGusset;
     $('in-perfW').value = FFS.formatNum(S.perfW);
     $('in-perfAlign').value = S.perfAlign || 'left';
     for (let i = 0; i < 4; i++) $('in-P' + (i + 1)).value = S.P[i] == null ? '' : FFS.formatNum(S.P[i]);
@@ -321,14 +325,15 @@
     if (g.b3Net > S.B1) errs3d.push(`Внешний клапан B3 (${g.b3Net}) шире рукава B1 (${S.B1})!`);
     if (S.B4 > S.B1) errs3d.push(`Внутренний клапан B4 (${S.B4}) шире рукава B1 (${S.B1})!`);
 
+    errs3d.push(...g.seamErrors);
     if (errs3d.length) {
       bBack.className = 'pill pill-err';
-      bBack.textContent = S.B4 < 0 ? `⚠ B4 = ${FFS.formatNum(S.B4)} мм!` : (S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.abs(Math.round(g.backOverlap))} мм` : '⚠ Клапан > B1!'));
+      bBack.textContent = S.B4 < 0 ? `⚠ B4 = ${FFS.formatNum(S.B4)} мм!` : (S.B2 >= S.B1 ? '⚠ B2 ≥ B1!' : (g.backOverlap < 0 ? `⚠ Разрыв тыла ${Math.abs(Math.round(g.backOverlap))} мм` : (g.seamErrors.length ? '⚠ Шов за полотном' : '⚠ Клапан > B1!')));
       warn3d.innerHTML = errs3d.join('<br>');
       warn3d.style.display = 'block';
-    } else if (g.backOverlap > 0.5) {
+    } else if (g.channel || g.backOverlap > 0.5) {
       bBack.className = 'pill pill-info';
-      bBack.textContent = `Канал S1–S3: +${Math.round(g.backOverlap)} мм`;
+      bBack.textContent = g.channel ? `Канал S1–S3: ${FFS.formatNum(g.channel.width)} мм` : `Нахлёст: ${FFS.formatNum(g.backOverlap)} мм`;
       warn3d.style.display = 'none';
     } else {
       bBack.className = 'pill pill-ok';
@@ -346,7 +351,9 @@
       `Ось лица B1: <b>${g.xCenter.toFixed(1)} мм</b> • B1: <b>[${g.s4}..${g.s5}]</b><br>` +
       `Клапаны: внеш. <b>${FFS.formatNum(g.b3Net)}</b>` + (S.t1InB3 ? ' (T1 в B3)' : '') + ` • внутр. B4: <b>${FFS.formatNum(S.B4)} мм</b>` + (S.autoB4 ? ' (авто)' : '') + '<br>' +
       `Шов S1: <b>${FFS.formatNum(g.seamS1)} мм</b>` +
-      (g.backOverlap > 0.5 ? ` • Канал до S3 (${FFS.formatNum(g.seamS3)}): <b>${FFS.formatNum(g.backOverlap)} мм</b>` : '') + '<br>' +
+      (S.S2 ? ` • S2: <b>${FFS.formatNum(g.seamS2)} мм</b>` : '') +
+      (S.S3 ? ` • S3: <b>${FFS.formatNum(g.seamS3)} мм</b>` : '') +
+      (g.channel ? ` • Канал S1–S3: <b>${FFS.formatNum(g.channel.width)} мм</b>` : '') + '<br>' +
       (S.transOn ? `Раб. высота A<sub>эфф</sub>: <b>${FFS.getTransverseGeom(S).effA} мм</b> (швы ${S.topSeal}/${S.botSeal}, м/з ±${S.deadZone})<br>` : '') +
       `Оснастка: <b>${tl.detail}</b>`;
 
@@ -355,9 +362,9 @@
       typeof FFS.analyzeSeamArtwork === 'function' ? FFS.analyzeSeamArtwork(S) : []
     );
     if (!checks.length) {
-      const idle = S.embOn || S.perfOn
-        ? 'Координаты не заданы'
-        : 'Нет активного тиснения / перфорации';
+      const hasStrips = (S.embOn && S.E.some(v => v !== null)) || (S.perfOn && S.P.some(v => v !== null));
+      const hasOperations = hasStrips || S.fgOn || S.cutExtOn || S.cutIntOn || S.pmOn || S.transOn;
+      const idle = hasOperations ? 'Коллизий не обнаружено' : (S.embOn || S.perfOn ? 'Координаты не заданы' : 'Обработка выключена');
       symEl.innerHTML = `<div class="sym-row"><span class="sym-muted">${idle}</span></div>`;
     } else {
       symEl.innerHTML = checks.map(c =>
@@ -367,14 +374,20 @@
 
   };
 
+  let redrawPending = false;
   FFS.updateAll = function (reframeCamera) {
-    FFS.updateBadgesAndSummary();
-    if (typeof FFS.updateArtworkUI === 'function') FFS.updateArtworkUI();
-    FFS.draw2D();
-    FFS.update3DTexture();
-    FFS.update3DGeometry();
-    FFS.drawCrossSection();
     if (reframeCamera) FFS.reframe3D();
+    if (redrawPending) return;
+    redrawPending = true;
+    requestAnimationFrame(() => {
+      redrawPending = false;
+      FFS.updateBadgesAndSummary();
+      FFS.updateArtworkUI();
+      FFS.draw2D();
+      FFS.update3DTexture();
+      FFS.update3DGeometry();
+      FFS.drawCrossSection();
+    });
   };
 
   function bindInputs() {
@@ -383,7 +396,15 @@
       const prevMaxDim = Math.max(S.A, S.B);
       FFS.ui.symNote = '';
 
-      const srcId = ev && ev.target ? ev.target.id : '';
+      const el = ev.target;
+      const srcId = el.id;
+      if (el.inputMode === 'decimal' && el.value.trim() && !Number.isFinite(FFS.parseLocaleNumber(el.value))) {
+        el.setAttribute('aria-invalid', 'true');
+        if (!isBlur) return;
+        FFS.showToast('Ошибка ввода числа. Восстановлено предыдущее значение.');
+        el.value = el.dataset.original ?? '';
+      }
+      el.removeAttribute('aria-invalid');
       let autoB = $('in-autoB').checked;
       let autoB4 = $('in-autoB4').checked;
       if (srcId === 'in-autoB4' && autoB4) {
@@ -442,6 +463,7 @@
       for (let i = 0; i < 5; i++) S.E[i] = readOptNum('in-E' + (i + 1));
 
       S.perfOn = $('in-perfOn').checked;
+      S.perfAllowGusset = $('in-perfAllowGusset').checked;
       S.perfW = readNum('in-perfW', 'perfW', 5, 200);
       S.perfAlign = $('in-perfAlign').value;
       for (let i = 0; i < 4; i++) S.P[i] = readOptNum('in-P' + (i + 1));
@@ -476,10 +498,10 @@
       $('lbl-omOp3D').textContent = Math.round(S.omOpacity3D) + '%';
       S.omFlipX = $('in-omFlipX').checked;
       S.omRot180 = $('in-omRot180').checked;
-      S.omCropL = readNum('in-omCropL', 'omCropL', 0, 49);
-      S.omCropR = readNum('in-omCropR', 'omCropR', 0, 49);
-      S.omCropT = readNum('in-omCropT', 'omCropT', 0, 49);
-      S.omCropB = readNum('in-omCropB', 'omCropB', 0, 49);
+      S.omCropL = readNum('in-omCropL', 'omCropL', 0, 92);
+      S.omCropR = readNum('in-omCropR', 'omCropR', 0, 92);
+      S.omCropT = readNum('in-omCropT', 'omCropT', 0, 92);
+      S.omCropB = readNum('in-omCropB', 'omCropB', 0, 92);
       const cropLR = FFS.normalizeCropPair(S.omCropL, S.omCropR);
       const cropTB = FFS.normalizeCropPair(S.omCropT, S.omCropB);
       S.omCropL = cropLR[0]; S.omCropR = cropLR[1];
@@ -491,6 +513,7 @@
     };
 
     document.querySelectorAll('aside input:not([type="file"]), aside select, #in-zones, #in-mirror2d').forEach(el => {
+      if (el.inputMode === 'decimal') el.addEventListener('focus', () => { el.dataset.original = el.value; });
       el.addEventListener('input', ev => onEdit(false, ev));
       el.addEventListener('change', ev => onEdit(true, ev));
       el.addEventListener('blur', ev => onEdit(true, ev));
@@ -529,11 +552,15 @@
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = function () {
+      reader.onload = async function () {
         try {
-          const { added, updated } = FFS.importPresetsFromJSON(String(reader.result || ''));
+          const active = FFS.getPresetById(FFS.ui.activePresetId);
+          const previousData = active && active.data;
+          const { added, updated, stored } = await FFS.importPresetsFromJSON(String(reader.result || ''));
           FFS.renderPresetSelect();
-          if (added + updated === 0) {
+          if (active && active.id === FFS.ui.activePresetId && active.data !== previousData) FFS.applySavedPreset(active.id);
+          if (!stored) FFS.showToast('Импортирован только в эту сессию. Сохраните JSON.');
+          else if (added + updated === 0) {
             FFS.showToast('В файле не найдено подходящих пресетов');
           } else {
             FFS.showToast(`Импорт: добавлено ${added}, обновлено ${updated}`);
@@ -585,6 +612,7 @@
   bindInputs();
   initSplitter();
   FFS.loadDefaultTemplate();
+  FFS.presetsReady.then(FFS.renderPresetSelect);
   FFS.updateFoldUI();
   FFS.loadThree(() => {
     FFS.init3D();

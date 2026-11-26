@@ -212,6 +212,7 @@
         <div class="card-hdr">
           <label class="chk-row"><input type="checkbox" id="in-perfOn" /> Перфорация иглами (P1–P4)</label>
         </div>
+        <label class="chk-row mb-6"><input type="checkbox" id="in-perfAllowGusset" /> Разрешить перфорацию на фальцах для этого заказа</label>
         <div class="grid-2 mb-6">
           <div class="field"><label>Ширина полосы (мм)</label><input type="text" inputmode="decimal" id="in-perfW" min="5" max="200" /></div>
           <div class="field">
@@ -316,10 +317,10 @@
           </label>
         </div>
         <div class="grid-2 mb-7">
-          <div class="field"><label>Обрезка лево (%)</label><input type="text" inputmode="decimal" id="in-omCropL" min="0" max="49" step="0.1" /></div>
-          <div class="field"><label>Обрезка право (%)</label><input type="text" inputmode="decimal" id="in-omCropR" min="0" max="49" step="0.1" /></div>
-          <div class="field"><label>Обрезка верх (%)</label><input type="text" inputmode="decimal" id="in-omCropT" min="0" max="49" step="0.1" /></div>
-          <div class="field"><label>Обрезка низ (%)</label><input type="text" inputmode="decimal" id="in-omCropB" min="0" max="49" step="0.1" /></div>
+          <div class="field"><label>Обрезка лево (%)</label><input type="text" inputmode="decimal" id="in-omCropL" min="0" max="92" step="0.1" /></div>
+          <div class="field"><label>Обрезка право (%)</label><input type="text" inputmode="decimal" id="in-omCropR" min="0" max="92" step="0.1" /></div>
+          <div class="field"><label>Обрезка верх (%)</label><input type="text" inputmode="decimal" id="in-omCropT" min="0" max="92" step="0.1" /></div>
+          <div class="field"><label>Обрезка низ (%)</label><input type="text" inputmode="decimal" id="in-omCropB" min="0" max="92" step="0.1" /></div>
         </div>
         <div class="geo-summary mb-6" id="om-ratio-info">Загрузите изображение ОМ для контроля пропорций B/A.</div>
         <button class="btn btn-soft" style="width:100%;" onclick="FFS.resetArtworkCrop()">Сбросить обрезку (0%)</button>
@@ -366,6 +367,7 @@
       <div class="canvas-wrap" id="wrap-3d">
         <div id="three-mount"></div>
         <div id="warn-3d"></div>
+        <div id="warn-profile" hidden>В этом положении слои пересекаются. Точка отмечена на сечении X–Z.</div>
         <div class="cam-bar">
           <button class="cam-btn" onclick="FFS.setCameraPreset('iso')">Изометрия</button>
           <button class="cam-btn" onclick="FFS.setCameraPreset('front')">Лицо</button>

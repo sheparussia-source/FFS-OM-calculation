@@ -10,6 +10,7 @@
   let cropDraft = { L: 0, R: 0, T: 0, B: 0 };
   let cropBox = null; // fitted image rect on cropCanvas
   let cropDrag = null;
+  let seamCache;
 
   FFS.hasArtwork = function () {
     return !!(FFS.artwork && FFS.artwork.img && FFS.artwork.naturalW > 0);
@@ -85,31 +86,49 @@
     }
   };
 
+  let artworkRequest = 0;
+  function decodeArtwork(source, request, uploaded) {
+    const img = new Image();
+    img.onload = () => {
+      if (request !== artworkRequest) return;
+      $('btn-save-preset').disabled = false;
+      FFS.artwork = { img, fileName: source.name, naturalW: img.naturalWidth, naturalH: img.naturalHeight, source };
+      if (uploaded) {
+        FFS.state.omShow2D = FFS.state.omShow3D = true;
+        FFS.syncStateToInputs();
+        FFS.showToast(`Макет «${source.name}» загружен`);
+      }
+      FFS.updateAll(false);
+    };
+    img.onerror = () => { if (request === artworkRequest) { $('btn-save-preset').disabled = false; FFS.showToast('Не удалось прочитать изображение'); } };
+    img.src = source.src;
+  }
+
+  FFS.restoreArtwork = function (source) {
+    const request = ++artworkRequest;
+    seamCache = null;
+    FFS.closeCropModal();
+    $('btn-save-preset').disabled = false;
+    FFS.artwork = { img: null, fileName: '', naturalW: 0, naturalH: 0, source };
+    if (source) decodeArtwork(source, request, false);
+  };
+
   FFS.loadArtworkFile = function (file) {
     if (!file) return;
-    if (!file.type || !file.type.startsWith('image/')) {
-      if (typeof FFS.showToast === 'function') FFS.showToast('Выберите файл изображения (PNG, JPG или WebP)');
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      FFS.showToast('Выберите PNG, JPG или WebP');
       return;
     }
+    const request = ++artworkRequest;
     const reader = new FileReader();
-    reader.onload = function () {
-      const img = new Image();
-      img.onload = function () {
-        FFS.artwork.img = img;
-        FFS.artwork.fileName = file.name;
-        FFS.artwork.naturalW = img.naturalWidth || img.width;
-        FFS.artwork.naturalH = img.naturalHeight || img.height;
-        FFS.state.omShow2D = true;
-        FFS.state.omShow3D = true;
-        if (typeof FFS.syncStateToInputs === 'function') FFS.syncStateToInputs();
-        FFS.updateArtworkUI();
-        if (typeof FFS.updateAll === 'function') FFS.updateAll(false);
-        if (typeof FFS.showToast === 'function') FFS.showToast(`Макет «${file.name}» наложен на 2D и 3D`);
-      };
-      img.onerror = function () {
-        if (typeof FFS.showToast === 'function') FFS.showToast('Не удалось прочитать изображение');
-      };
-      img.src = String(reader.result || '');
+    const save = $('btn-save-preset');
+    save.disabled = true;
+    reader.onload = () => {
+      if (request !== artworkRequest) return;
+      decodeArtwork({ name: file.name, src: reader.result }, request, true);
+    };
+    reader.onerror = () => {
+      if (request === artworkRequest) { save.disabled = false; FFS.showToast('Не удалось прочитать файл ОМ'); }
     };
     reader.readAsDataURL(file);
   };
@@ -123,10 +142,7 @@
   };
 
   FFS.clearArtwork = function () {
-    FFS.artwork.img = null;
-    FFS.artwork.fileName = '';
-    FFS.artwork.naturalW = 0;
-    FFS.artwork.naturalH = 0;
+    FFS.restoreArtwork(null);
     FFS.updateArtworkUI();
     if (typeof FFS.updateAll === 'function') FFS.updateAll(false);
     if (typeof FFS.showToast === 'function') FFS.showToast('Макет ОМ убран');
@@ -287,140 +303,84 @@
     if (typeof FFS.showToast === 'function') FFS.showToast('Рамка макета ОМ применена');
   };
 
-  // Края полотна сходятся на продольном шве. Сравниваем полоску макета у свободного края
-  // с полоской, которая приходит к ней по шву S1. Это пиксели картинки, не распознавание букв.
-  FFS.analyzeSeamArtwork = function (S) {
-    if (!FFS.hasArtwork() || typeof FFS.getGeom !== 'function') return [];
-    const st = S || FFS.state;
+  const seamBandMm = 4;
+  const seamBinMm = 2;
+  const seamPixelsPerMm = 3;
+
+  function sampleSeamBand(st, start) {
+    const canvas = document.createElement('canvas');
+    canvas.width = seamBandMm * seamPixelsPerMm;
+    canvas.height = Math.ceil(st.A * seamPixelsPerMm);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    FFS.drawArtworkOnCtx(ctx, -start * seamPixelsPerMm, 0,
+      st.B * seamPixelsPerMm, canvas.height, st.omFlipX, st.omRot180, 1, st);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const binHeight = seamBinMm * seamPixelsPerMm;
+    const profile = [];
+    for (let y = 0; y < canvas.height; y += binHeight) {
+      const end = Math.min(y + binHeight, canvas.height) * canvas.width;
+      const begin = y * canvas.width;
+      const rgb = [0, 0, 0];
+      for (let i = begin; i < end; i++) {
+        for (let c = 0; c < 3; c++) rgb[c] += pixels[i * 4 + c];
+      }
+      profile.push(rgb.map(sum => sum / (end - begin)));
+    }
+    return profile;
+  }
+
+  function compareSeamBands(a, b, shift) {
+    const first = Math.max(0, -shift), last = Math.min(a.length, b.length - shift);
+    let sum = 0, max = 0;
+    for (let i = first; i < last; i++) {
+      const color = a[i], other = b[i + shift];
+      const difference = Math.max(...color.map((v, c) => Math.abs(v - other[c])));
+      sum += difference;
+      max = Math.max(max, difference);
+    }
+    return { mean: sum / (last - first), max };
+  }
+
+  FFS.analyzeSeamArtwork = function (st = FFS.state) {
+    if (!st.S1 || !FFS.hasArtwork()) return [];
     const g = FFS.getGeom(st);
-    const label = 'Стык рисунка на шве';
-    const filmB = Math.max(st.B, g.sumB, 1);
-    const lip = Math.max(0, st.T1);
-    const seamCut = g.seamS1 - lip;
-    if (!(seamCut > 6) || seamCut > filmB - 1) {
-      return [{ label, status: 'warn', text: 'Шов S1 вне полотна, стык рисунка не проверить' }];
+    const seamCut = g.seamS1 - st.T1;
+    const result = (status, text) => [{ label: 'Стык рисунка на шве S1', status, text }];
+    if (g.seamS1 > st.B || seamCut - seamBandMm < g.s7 || seamCut > st.B) {
+      return result('warn', 'Недостаточно полотна в зоне стыка для проверки рисунка');
     }
 
-    const band = 4;
-    const binMm = 2;
-    const ppm = 3;
-    const src = FFS.getArtworkSourceRect(st);
-    const paint = (x0, wMm) => {
-      const cw = Math.max(2, Math.round(wMm * ppm));
-      const ch = Math.max(2, Math.round(Math.max(st.A, 1) * ppm));
-      const canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, cw, ch);
-      const fullW = filmB * ppm;
-      ctx.save();
-      ctx.translate(-x0 * ppm + fullW / 2, ch / 2);
-      if (st.omRot180) ctx.rotate(Math.PI);
-      if (st.omFlipX) ctx.scale(-1, 1);
-      ctx.drawImage(FFS.artwork.img, src.sx, src.sy, src.sw, src.sh, -fullW / 2, -ch / 2, fullW, ch);
-      ctx.restore();
-      return ctx.getImageData(0, 0, cw, ch);
-    };
-
-    const profile = (image, fromRight) => {
-      const cols = Math.max(1, Math.min(image.width, Math.round(band * ppm)));
-      const bin = Math.max(1, Math.round(binMm * ppm));
-      const bins = [];
-      for (let y0 = 0; y0 < image.height; y0 += bin) {
-        const y1 = Math.min(image.height, y0 + bin);
-        let sum = 0;
-        let n = 0;
-        for (let y = y0; y < y1; y++) {
-          for (let k = 0; k < cols; k++) {
-            const x = fromRight ? (image.width - 1 - k) : k;
-            const i = (y * image.width + x) * 4;
-            const r = image.data[i];
-            const gch = image.data[i + 1];
-            const b = image.data[i + 2];
-            const dr = 255 - r;
-            const dg = 255 - gch;
-            const db = 255 - b;
-            sum += Math.sqrt(dr * dr + dg * dg + db * db);
-            n++;
-          }
+    const key = [st.B, st.A, seamCut, st.omFlipX, st.omRot180,
+      st.omCropL, st.omCropR, st.omCropT, st.omCropB].join('|');
+    if (seamCache && seamCache.image === FFS.artwork.img && seamCache.key === key) return seamCache.rows;
+    const left = sampleSeamBand(st, 0);
+    const right = sampleSeamBand(st, seamCut - seamBandMm);
+    // A close match must agree in color as well as in vertical placement.
+    // The thresholds are for a raster preview and do not grade print quality.
+    const matches = score => score.mean <= 12 && score.max <= 48;
+    const aligned = compareSeamBands(left, right, 0);
+    let rows;
+    if (matches(aligned)) {
+      const uniform = left.every(rgb => rgb.every((value, c) => Math.abs(value - left[0][c]) <= 12));
+      rows = uniform ? result('ok', 'Однотонные участки на стыке совпадают') : result('ok', 'Рисунок на шве S1 продолжается');
+    } else {
+      let bestShift = 0;
+      let bestDifference = aligned.mean;
+      for (let shift = -6; shift <= 6; shift++) {
+        if (shift === 0) continue;
+        const score = compareSeamBands(left, right, shift);
+        if (matches(score) && score.mean + 0.5 * Math.abs(shift) < bestDifference) {
+          bestDifference = score.mean + 0.5 * Math.abs(shift);
+          bestShift = shift;
         }
-        bins.push(sum / n);
       }
-      return bins;
-    };
-
-    const corrAt = (a, b, shift) => {
-      let a0 = 0;
-      let b0 = 0;
-      let n = Math.min(a.length, b.length) - Math.abs(shift);
-      if (shift > 0) a0 = shift;
-      else b0 = -shift;
-      if (n < 8) return 0;
-      let ma = 0;
-      let mb = 0;
-      for (let i = 0; i < n; i++) {
-        ma += a[a0 + i];
-        mb += b[b0 + i];
-      }
-      ma /= n;
-      mb /= n;
-      let va = 0;
-      let vb = 0;
-      let cov = 0;
-      for (let i = 0; i < n; i++) {
-        const da = a[a0 + i] - ma;
-        const db = b[b0 + i] - mb;
-        va += da * da;
-        vb += db * db;
-        cov += da * db;
-      }
-      if (va < 1 || vb < 1) return 0;
-      return cov / Math.sqrt(va * vb);
-    };
-
-    const seamImg = paint(seamCut - band, band);
-    const edgeImg = paint(0, band);
-    const seamProf = profile(seamImg, true);
-    const edgeProf = profile(edgeImg, false);
-    const maxShift = Math.round(12 / binMm);
-    let bestShift = 0;
-    let best = -1;
-    for (let s = -maxShift; s <= maxShift; s++) {
-      const c = corrAt(seamProf, edgeProf, s);
-      if (c > best) {
-        best = c;
-        bestShift = s;
-      }
+      rows = bestShift ? result('warn', `Рисунок на шве S1 смещён на ${Math.abs(bestShift) * seamBinMm} мм`)
+        : result('warn', 'Цвет или рисунок на шве S1 не совпадает');
     }
-    const shiftMm = Math.round(bestShift * binMm * 10) / 10;
-    const flat = (arr) => {
-      let m = 0;
-      for (let i = 0; i < arr.length; i++) m += arr[i];
-      m /= arr.length;
-      let v = 0;
-      for (let i = 0; i < arr.length; i++) {
-        const d = arr[i] - m;
-        v += d * d;
-      }
-      return v / arr.length < 4;
-    };
-
-    if (flat(seamProf) && flat(edgeProf)) {
-      return [{ label, status: 'muted', text: 'На шве S1 рисунка нет' }];
-    }
-    if (best < 0.62) {
-      return [{ label, status: 'warn', text: 'На шве S1 рисунок не продолжается' }];
-    }
-    if (Math.abs(shiftMm) > 3) {
-      return [{
-        label,
-        status: 'warn',
-        text: `На шве S1 строки не сходятся, смещение ${Math.abs(shiftMm)} мм`
-      }];
-    }
-    return [{ label, status: 'ok', text: 'Рисунок на шве S1 продолжается' }];
+    seamCache = { image: FFS.artwork.img, key, rows };
+    return rows;
   };
 
   FFS.initArtworkEvents = function () {
@@ -461,7 +421,7 @@
       });
     }
 
-    cropCanvas.addEventListener('mousedown', e => {
+    cropCanvas.addEventListener('pointerdown', e => {
       if (!cropBox) return;
       const rect = cropCanvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -470,7 +430,7 @@
       cropDrag = { mode, startX: mx, startY: my, orig: { ...cropDraft } };
     });
 
-    window.addEventListener('mousemove', e => {
+    window.addEventListener('pointermove', e => {
       if (!cropCanvas || !cropBox) return;
       const modalEl = $('crop-modal');
       if (!modalEl || !modalEl.classList.contains('open')) return;
@@ -498,33 +458,27 @@
       if (m === 'new') {
         const aX = pxToPctX(cropDrag.startX), bX = pxToPctX(mx);
         const aY = pxToPctY(cropDrag.startY), bY = pxToPctY(my);
-        cropDraft.L = clamp(Math.min(aX, bX), 0, 49);
-        cropDraft.R = clamp(100 - Math.max(aX, bX), 0, 49);
-        cropDraft.T = clamp(Math.min(aY, bY), 0, 49);
-        cropDraft.B = clamp(100 - Math.max(aY, bY), 0, 49);
+        [cropDraft.L, cropDraft.R] = FFS.normalizeCropPair(Math.min(aX, bX), 100 - Math.max(aX, bX));
+        [cropDraft.T, cropDraft.B] = FFS.normalizeCropPair(Math.min(aY, bY), 100 - Math.max(aY, bY));
       } else if (m === 'move') {
-        const dx = ((mx - cropDrag.startX) / iw) * 100;
-        const dy = ((my - cropDrag.startY) / ih) * 100;
-        const wPct = 100 - o.L - o.R;
-        const hPct = 100 - o.T - o.B;
-        const nL = clamp(o.L + dx, 0, Math.min(49, 100 - wPct));
-        const nT = clamp(o.T + dy, 0, Math.min(49, 100 - hPct));
-        cropDraft.L = nL;
-        cropDraft.R = clamp(100 - wPct - nL, 0, 49);
-        cropDraft.T = nT;
-        cropDraft.B = clamp(100 - hPct - nT, 0, 49);
+        const dx = clamp((mx - cropDrag.startX) * 100 / iw, -o.L, o.R);
+        const dy = clamp((my - cropDrag.startY) * 100 / ih, -o.T, o.B);
+        cropDraft.L = o.L + dx;
+        cropDraft.R = o.R - dx;
+        cropDraft.T = o.T + dy;
+        cropDraft.B = o.B - dy;
       } else {
-        if (m.includes('l')) cropDraft.L = clamp(pxToPctX(mx), 0, Math.min(49, 92 - cropDraft.R));
-        if (m.includes('r')) cropDraft.R = clamp(100 - pxToPctX(mx), 0, Math.min(49, 92 - cropDraft.L));
-        if (m.includes('t')) cropDraft.T = clamp(pxToPctY(my), 0, Math.min(49, 92 - cropDraft.B));
-        if (m.includes('b')) cropDraft.B = clamp(100 - pxToPctY(my), 0, Math.min(49, 92 - cropDraft.T));
+        if (m.includes('l')) cropDraft.L = clamp(pxToPctX(mx), 0, 92 - cropDraft.R);
+        if (m.includes('r')) cropDraft.R = clamp(100 - pxToPctX(mx), 0, 92 - cropDraft.L);
+        if (m.includes('t')) cropDraft.T = clamp(pxToPctY(my), 0, 92 - cropDraft.B);
+        if (m.includes('b')) cropDraft.B = clamp(100 - pxToPctY(my), 0, 92 - cropDraft.T);
       }
       drawCropModal();
     });
 
-    window.addEventListener('mouseup', () => {
-      cropDrag = null;
-    });
+    const endCropDrag = () => { cropDrag = null; };
+    window.addEventListener('pointerup', endCropDrag);
+    window.addEventListener('pointercancel', endCropDrag);
 
     window.addEventListener('resize', () => {
       const modalEl = $('crop-modal');

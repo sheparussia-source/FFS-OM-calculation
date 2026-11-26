@@ -27,28 +27,26 @@
     if (raw == null) return NaN;
     let s = String(raw).trim();
     if (!s) return NaN;
-    s = s.replace(/\s+/g, '');
-    const lastComma = s.lastIndexOf(',');
-    const lastDot = s.lastIndexOf('.');
-    if (lastComma !== -1 && lastDot !== -1) {
-      if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
-      else s = s.replace(/,/g, '');
-    } else if (lastComma !== -1) {
-      s = s.replace(',', '.');
+    // Accept grouped thousands only in complete groups, and consume the whole field.
+    const groupedSpace = /^[+-]?\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:[.,]\d+)?$/;
+    if (groupedSpace.test(s)) s = s.replace(/\s/g, '');
+    if (s.includes(',') && s.includes('.')) {
+      if (/^[+-]?\d{1,3}(?:,\d{3})+\.\d+$/.test(s)) s = s.replace(/,/g, '');
+      else if (/^[+-]?\d{1,3}(?:\.\d{3})+,\d+$/.test(s)) s = s.replace(/\./g, '');
+      else return NaN;
     }
-    const m = s.match(/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/);
-    if (!m) return NaN;
-    return Number(m[0]);
+    s = s.replace(',', '.');
+    return /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(s) ? Number(s) : NaN;
   };
 
   FFS.formatNum = function (n) {
     if (!Number.isFinite(n)) return '';
-    return String(Math.round(n * 10000) / 10000);
+    return Number.isInteger(n) ? String(n) : String(Math.round(n * 10000) / 10000);
   };
 
   FFS.normalizeCropPair = function (a, b) {
-    let x = FFS.clamp(FFS.parseLocaleNumber(a), 0, 49);
-    let y = FFS.clamp(FFS.parseLocaleNumber(b), 0, 49);
+    let x = FFS.clamp(FFS.parseLocaleNumber(a), 0, 92);
+    let y = FFS.clamp(FFS.parseLocaleNumber(b), 0, 92);
     if (!Number.isFinite(x)) x = 0;
     if (!Number.isFinite(y)) y = 0;
     if (x + y > 92) {
@@ -71,7 +69,7 @@
     topSeal: [0, 150], botSeal: [0, 150], deadZone: [0, 100],
     pmW: [2, 150], pmH: [2, 150],
     omOpacity2D: [0, 100], omOpacity3D: [0, 100],
-    omCropL: [0, 49], omCropR: [0, 49], omCropT: [0, 49], omCropB: [0, 49]
+    omCropL: [0, 92], omCropR: [0, 92], omCropT: [0, 92], omCropB: [0, 92]
   };
   FFS.smoothstep = function (e0, e1, x) {
     const t = FFS.clamp((x - e0) / (e1 - e0), 0, 1);
@@ -85,7 +83,7 @@
     S1: true, S2: false, S3: false, S2off: 12, S3off: 0,
     symMode: 'face_back', symMargin: 15, showZones: true, mirror2d: false,
     embOn: false, embW: 62, embAlign: 'left', E: [null, null, null, null, null],
-    perfOn: false, perfW: 25, perfAlign: 'left', P: [null, null, null, null],
+    perfOn: false, perfAllowGusset: false, perfW: 25, perfAlign: 'left', P: [null, null, null, null],
     cutExtOn: false, C1: 50, D1: 80, cutExtPat: '3x6',
     cutIntOn: false, C2: 750, D2: 250, cutIntPat: '3x6',
     fgOn: false, F: 820, G: 200,
@@ -110,7 +108,7 @@
       'pmW', 'pmH', 'pmX', 'pmY', 'topSeal', 'botSeal', 'deadZone',
       'omOpacity2D', 'omOpacity3D', 'omCropL', 'omCropR', 'omCropT', 'omCropB'];
     const boolKeys = ['autoB', 'autoB4', 't1InB3', 'S1', 'S2', 'S3', 'showZones', 'mirror2d',
-      'embOn', 'perfOn', 'cutExtOn', 'cutIntOn', 'fgOn', 'pmOn',
+      'embOn', 'perfOn', 'perfAllowGusset', 'cutExtOn', 'cutIntOn', 'fgOn', 'pmOn',
       'transOn', 'omShow2D', 'omShow3D', 'omHideLabels3D', 'omFlipX', 'omRot180'];
     const strKeys = ['symMode', 'embAlign', 'perfAlign', 'cutExtPat', 'cutIntPat', 'pmColor', 'scheme'];
 
@@ -158,14 +156,17 @@
     if (typeof FFS.finalizeAutoBalance === 'function') FFS.finalizeAutoBalance(base);
     ['C1', 'C2', 'F', 'pmX'].forEach(k => { base[k] = FFS.clamp(base[k], 0, base.B); });
     ['D1', 'D2', 'G', 'pmY'].forEach(k => { base[k] = FFS.clamp(base[k], 0, base.A); });
-    base.E = base.E.map(v => (v === null ? null : FFS.clamp(v, 0, base.B)));
-    base.P = base.P.map(v => (v === null ? null : FFS.clamp(v, 0, base.B)));
     const lr = FFS.normalizeCropPair(base.omCropL, base.omCropR);
     const tb = FFS.normalizeCropPair(base.omCropT, base.omCropB);
     base.omCropL = lr[0]; base.omCropR = lr[1];
     base.omCropT = tb[0]; base.omCropB = tb[1];
     return base;
   };
+
+  function readArtwork(value) {
+    if (!value || typeof value.src !== 'string' || !/^data:image\/(?:png|jpeg|webp);base64,/i.test(value.src)) return null;
+    return { name: String(value.name || 'ОМ'), src: value.src };
+  }
 
   FFS.loadSavedPresets = function () {
     try {
@@ -179,6 +180,7 @@
           id: String(item.id || ('p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7))),
           name: item.name.trim().slice(0, 80),
           updatedAt: item.updatedAt || new Date().toISOString(),
+          artwork: readArtwork(item.artwork),
           data: FFS.sanitizeState(item.data)
         }));
     } catch (e) {
@@ -186,17 +188,44 @@
     }
   };
 
-  FFS.persistSavedPresets = function (list) {
-    try {
-      if (!root.localStorage) return false;
-      root.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  };
-
+  // Keep images with their order. IndexedDB has room for production-size artwork.
+  // On first use import the original localStorage records in one upgrade transaction.
+  let db;
   FFS.savedPresets = FFS.loadSavedPresets();
+  FFS.presetsReady = new Promise(resolve => {
+    let request;
+    try { request = root.indexedDB.open('ffs_bag_cad', 1); }
+    catch { resolve(); return; }
+    request.onupgradeneeded = () => {
+      const store = request.result.createObjectStore('presets', { keyPath: 'id' });
+      FFS.savedPresets.forEach(preset => store.put(preset));
+    };
+    request.onerror = () => resolve();
+    request.onsuccess = () => {
+      db = request.result;
+      const read = db.transaction('presets').objectStore('presets').getAll();
+      read.onsuccess = () => { FFS.savedPresets = read.result; resolve(); };
+      read.onerror = () => { db.close(); db = null; resolve(); };
+    };
+  });
+
+  async function persistChanges(changed, removedId) {
+    await FFS.presetsReady;
+    try {
+      if (!db) {
+        root.localStorage.setItem(STORAGE_KEY, JSON.stringify(FFS.savedPresets));
+        return true;
+      }
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction('presets', 'readwrite');
+        const store = tx.objectStore('presets');
+        changed.forEach(preset => store.put(preset));
+        if (removedId) store.delete(removedId);
+        tx.oncomplete = () => resolve(true);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch { return false; }
+  }
 
   FFS.getPresetById = function (id) {
     return FFS.savedPresets.find(p => p.id === id) || null;
@@ -208,7 +237,8 @@
     return FFS.savedPresets.find(p => p.name.toLowerCase() === norm) || null;
   };
 
-  FFS.saveCurrentAsPreset = function (name) {
+  FFS.saveCurrentAsPreset = async function (name) {
+    await FFS.presetsReady;
     const clean = String(name || '').trim().slice(0, 80);
     if (!clean) return null;
 
@@ -233,28 +263,34 @@
       FFS.savedPresets.push(target);
     }
 
-    const stored = FFS.persistSavedPresets(FFS.savedPresets);
+    target.artwork = FFS.artwork.source || null;
+    const stored = await persistChanges([target]);
     return { preset: target, updated, stored };
   };
 
-  FFS.deletePresetById = function (id) {
+  FFS.deletePresetById = async function (id) {
+    await FFS.presetsReady;
     const idx = FFS.savedPresets.findIndex(p => p.id === id);
     if (idx === -1) return null;
     const removed = FFS.savedPresets.splice(idx, 1)[0];
-    FFS.persistSavedPresets(FFS.savedPresets);
+    if (!await persistChanges([], id)) {
+      FFS.savedPresets.splice(idx, 0, removed);
+      return null;
+    }
     return removed;
   };
 
   FFS.serializePresetsJSON = function () {
     return JSON.stringify({
       app: 'FFS Bag CAD',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       presets: FFS.savedPresets
     }, null, 2);
   };
 
-  FFS.importPresetsFromJSON = function (jsonText) {
+  FFS.importPresetsFromJSON = async function (jsonText) {
+    await FFS.presetsReady;
     const parsed = JSON.parse(jsonText);
     let incoming = [];
     if (Array.isArray(parsed)) incoming = parsed;
@@ -262,6 +298,7 @@
     else if (parsed && typeof parsed.name === 'string' && parsed.data) incoming = [parsed];
     else throw new Error('Неверный формат JSON');
 
+    const changed = new Set();
     let added = 0;
     let updated = 0;
     incoming.forEach(item => {
@@ -271,21 +308,25 @@
       const existing = FFS.findPresetByName(cleanName);
       if (existing) {
         existing.data = data;
+        existing.artwork = readArtwork(item.artwork);
+        changed.add(existing);
         existing.updatedAt = item.updatedAt || new Date().toISOString();
         updated++;
       } else {
         FFS.savedPresets.push({
           id: 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
           name: cleanName,
+          artwork: readArtwork(item.artwork),
           updatedAt: item.updatedAt || new Date().toISOString(),
           data
         });
+        changed.add(FFS.savedPresets[FFS.savedPresets.length - 1]);
         added++;
       }
     });
 
-    FFS.persistSavedPresets(FFS.savedPresets);
-    return { added, updated };
+    const stored = await persistChanges(changed);
+    return { added, updated, stored };
   };
 
   FFS.state = FFS.cloneDefaultState();

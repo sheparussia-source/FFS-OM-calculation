@@ -46,7 +46,14 @@
     // 0 всегда край B4 (s8), как в подписи поля. Пустое поле сюда не приходит.
     const seamS3 = st.S3off === 0 ? s8 : (seamS1 + st.S3off);
     const seamS2 = seamS1 + st.S2off;
-    return { sumB, s1L, b3Net, b4Eff, s2, s4, s5, s7, s8, xCenter, halfPerim, backOverlap, seamS1, seamS2, seamS3 };
+    const seamErrors = [];
+    for (const [name, x] of [['S1', seamS1], ['S2', seamS2], ['S3', seamS3]]) {
+      if (st[name] && (x < 0 || x > st.B)) seamErrors.push(`${name} = ${FFS.formatNum(x)} мм за пределами полотна 0…${FFS.formatNum(st.B)} мм`);
+    }
+    const channel = st.S1 && st.S3 && Math.min(seamS1, seamS3) >= 0 && Math.max(seamS1, seamS3) <= st.B
+      ? { left: Math.min(seamS1, seamS3), right: Math.max(seamS1, seamS3), width: Math.abs(seamS3 - seamS1) }
+      : null;
+    return { channel, seamErrors, sumB, s1L, b3Net, b4Eff, s2, s4, s5, s7, s8, xCenter, halfPerim, backOverlap, seamS1, seamS2, seamS3 };
   };
 
   FFS.getStripBounds = function (val, w, align) {
@@ -96,7 +103,7 @@
     return { cls: 'pill-warn', text: 'POLYTEX: Вне S/M', detail: `Не попадает в Small/Medium (нужна Large / проверка оснастки)` };
   };
 
-  FFS.pushStripHits = function (rows, name, b, st, g) {
+  FFS.pushStripHits = function (rows, name, b, st, g, allowGusset = false) {
     const tol = Math.max(Math.abs(st.B2tolM), Math.abs(st.B2tolP));
     if (b.left < 0 || b.right > st.B) {
       rows.push({ label: `${name} край полотна`, status: 'err', text: 'Вылет за B!' });
@@ -104,9 +111,9 @@
     }
     const hitL = b.right > g.s2 && b.left < g.s4;
     const hitR = b.right > g.s5 && b.left < g.s7;
-    if (hitL || hitR) {
+    if (!allowGusset && (hitL || hitR)) {
       rows.push({ label: `${name} ↔ Фальц B2`, status: 'err', text: 'Наезд на фальц!' });
-    } else {
+    } else if (!allowGusset) {
       const gaps = [
         Math.abs(b.right - g.s2), Math.abs(b.left - g.s4),
         Math.abs(b.right - g.s5), Math.abs(b.left - g.s7)
@@ -122,12 +129,13 @@
       const ov = Math.round((g.s1L + st.T2 - b.left) * 10) / 10;
       rows.push({ label: `${name} ↔ Подгиб T2`, status: 'warn', text: `Заход ${ov} мм` });
     }
-    if (g.backOverlap > 0.5 && b.right > g.seamS1 && b.left < g.s8) {
-      if (b.left < g.seamS1) {
-        rows.push({ label: `${name} ↔ Шов S1`, status: 'err', text: 'Пересекает шов S1!' });
-      } else {
-        rows.push({ label: `${name} ↔ Канал S1–S3`, status: 'warn', text: 'Внутри канала S1–S3' });
+    for (const [nameOfSeam, x] of [['S1', g.seamS1], ['S2', g.seamS2], ['S3', g.seamS3]]) {
+      if (st[nameOfSeam] && b.left < x && b.right > x) {
+        rows.push({ label: `${name} ↔ Шов ${nameOfSeam}`, status: 'err', text: 'Полоса пересекает шов' });
       }
+    }
+    if (g.channel && b.left < g.channel.right && b.right > g.channel.left && g.channel.width > 0) {
+      rows.push({ label: `${name} ↔ Канал S1–S3`, status: 'warn', text: 'Заход в канал S1–S3' });
     }
   };
 
@@ -143,7 +151,7 @@
   FFS.analyzeEmbossingAndPerf = function (S) {
     const st = S || FFS.state;
     const g = FFS.getGeom(st);
-    const rows = [];
+    const rows = g.seamErrors.map(text => ({ label: 'Продольный шов', status: 'err', text }));
 
     if (FFS.ui.symNote) {
       rows.push({ label: 'Автоподбор', status: 'warn', text: FFS.ui.symNote });
@@ -201,7 +209,13 @@
       st.P.forEach((v, i) => {
         if (v === null) return;
         const b = FFS.getStripBounds(v, st.perfW, pAlign);
-        FFS.pushStripHits(rows, `P${i + 1}`, b, st, g);
+        FFS.pushStripHits(rows, `P${i + 1}`, b, st, g, st.perfAllowGusset);
+        for (let j = i + 1; j < st.P.length; j++) {
+          if (st.P[j] === null) continue;
+          const other = FFS.getStripBounds(st.P[j], st.perfW, pAlign);
+          const overlap = Math.min(b.right, other.right) - Math.max(b.left, other.left);
+          if (overlap > 0.000001) rows.push({ label: `P${i + 1} ↔ P${j + 1}`, status: 'err', text: `Перекрытие ${FFS.formatNum(overlap)} мм` });
+        }
       });
 
       [[0, 1], [2, 3]].forEach(([i, j]) => {
@@ -227,15 +241,24 @@
     if (st.pmOn) {
       FFS.markExtent(rows, 'Фотометка', st.pmX, st.pmX + st.pmW, st.pmY, st.pmY + st.pmH, st);
     }
+    const checkFlap = (label, left, right, permitted) => {
+      if (!permitted.some(([a, b]) => left >= a && right <= b)) {
+        rows.push({ label, status: 'err', text: 'Обработка выходит за границу клапана' });
+      }
+    };
+    const outer = [g.s1L, g.s2], inner = [g.s7, g.s8];
     if (st.cutExtOn) {
       const box = cutBox(st.cutExtPat, st.C1, st.D1);
       FFS.markExtent(rows, 'Разрезы C1/D1', box.x0, box.x1, box.y0, box.y1, st);
+      checkFlap('Разрезы C1/D1', box.x0, box.x1, [outer]);
     }
     if (st.cutIntOn) {
       const box = cutBox(st.cutIntPat, st.C2, st.D2);
       FFS.markExtent(rows, 'Разрезы C2/D2', box.x0, box.x1, box.y0, box.y1, st);
+      checkFlap('Разрезы C2/D2', box.x0, box.x1, [inner]);
     }
     if (st.fgOn) {
+      checkFlap('Тиснение F/G', st.F - 14, st.F + 14, [outer, inner]);
       FFS.markExtent(rows, 'Тиснение F/G', st.F - 14, st.F + 14, st.G, st.G + 95, st);
     }
 
@@ -316,7 +339,7 @@
     st.E[1] = lim(e2L);
     st.E[2] = lim(e3L);
     st.E[3] = lim(e4L);
-    st.E[4] = null;
+
 
     if (typeof FFS.syncStateToInputs === 'function') FFS.syncStateToInputs();
     if (typeof FFS.updateAll === 'function') FFS.updateAll(false);
@@ -328,23 +351,42 @@
     const W = st.perfW;
     const pAlign = st.perfAlign || 'left';
     const shift = pAlign === 'center' ? W / 2 : 0;
-    const lim = leftVal => Math.round(clamp(leftVal, 0, Math.max(0, st.B - W)) + shift);
     const mirrorTo = (src, dst) => {
-      const c = FFS.getStripBounds(st.P[src], W, pAlign).center;
-      const cm = 2 * g.xCenter - c;
-      st.P[dst] = lim(cm - W / 2);
+      const original = FFS.getStripBounds(st.P[src], W, pAlign);
+      const left = 2 * g.xCenter - original.right;
+      const checks = [];
+      FFS.pushStripHits(checks, '', { left, right: left + W }, st, g, st.perfAllowGusset);
+      const overlaps = st.P.some((v, index) => {
+        if (v === null || index === dst) return false;
+        const strip = FFS.getStripBounds(v, W, pAlign);
+        return left < strip.right - 1e-7 && left + W > strip.left + 1e-7;
+      });
+      if (overlaps || checks.some(row => row.status === 'err')) {
+        FFS.ui.symNote = `Для P${src + 1} нет свободного симметричного места`;
+        return;
+      }
+      st.P[dst] = left + shift;
     };
 
+    FFS.ui.symNote = '';
     st.perfOn = true;
     [[0, 1], [2, 3]].forEach(([i, j]) => {
       if (st.P[i] !== null && st.P[j] === null) mirrorTo(i, j);
       else if (st.P[i] === null && st.P[j] !== null) mirrorTo(j, i);
       else if (st.P[i] !== null && st.P[j] !== null) mirrorTo(i, j);
       else if (i === 0) {
-        const cL = g.s2 + st.B2 / 2;
-        const cR = g.s5 + st.B2 / 2;
-        st.P[0] = lim(cL - W / 2);
-        st.P[1] = lim(cR - W / 2);
+        const margin = Math.max(st.symMargin, Math.abs(st.B2tolM), st.B2tolP);
+        const left = st.perfAllowGusset && W <= st.B2 ? g.s2 + (st.B2 - W) / 2 : g.s4 + margin;
+        const right = 2 * g.xCenter - left - W;
+        const checks = [];
+        FFS.pushStripHits(checks, '', { left, right: left + W }, st, g, st.perfAllowGusset);
+        FFS.pushStripHits(checks, '', { left: right, right: right + W }, st, g, st.perfAllowGusset);
+        if (right < left + W || checks.some(row => row.status === 'err')) {
+          FFS.ui.symNote = 'Для двух отдельных полос недостаточно места. Укажите координаты вручную.';
+        } else {
+          st.P[0] = left + shift;
+          st.P[1] = right + shift;
+        }
       }
     });
 
@@ -352,17 +394,17 @@
     if (typeof FFS.updateAll === 'function') FFS.updateAll(false);
   };
 
-  // ===================== SEQUENTIAL COLLISION-FREE 3D KINEMATICS =====================
+  // Sequential folding of the side walls, lips and gussets.
   // Stage 1 (0..50%): side walls lift. Inner lip T2 (32 mm, right edge, B4) closes first.
   // Outer lip T1 (8 mm, left edge, B3) closes second and sits outside it (-gap), so the
   // 8 mm edge covers the 32 mm edge.
-  // Stage 2 (50..100%): M-gussets tuck cleanly inward preserving arc-length with zero layer intrusion
-  FFS.evalProfile = function (s, fold01, S) {
+  // Stage 2 (50..100%): tuck the M-gussets inward.
+  FFS.evalProfile = function (s, fold01, S, geometry) {
     const st = S || FFS.state;
-    const g = FFS.getGeom(st);
+    const g = geometry || FFS.getGeom(st);
     const p1Side = smoothstep(0.00, 0.24, fold01);
     const p1In   = smoothstep(0.16, 0.36, fold01);
-    const p1Out  = smoothstep(0.34, 0.50, fold01);
+    const p1Out  = smoothstep(0.36, 0.50, fold01);
     const p2     = smoothstep(0.50, 1.00, fold01);
 
     const halfB1 = st.B1 / 2;
@@ -399,9 +441,13 @@
       const d = u - st.B2;
       const x0 = halfB1 + halfB2 * (Math.cos(theta1) + Math.cos(theta2));
       const z0 = -halfB2 * (Math.sin(theta1) + Math.sin(theta2));
+      const edge = Math.max(0, d - g.b4Eff);
+      // If the straight inner edge would reach the opposite wall, tuck T2
+      // at its existing crease before the inner flap starts to close.
+      const tuck = g.b4Eff + st.T2 > st.B1 ? smoothstep(0, 0.16, fold01) * (Math.PI - 0.08) : 0;
       return {
-        x: x0 + d * Math.cos(theta3In),
-        z: z0 - d * Math.sin(theta3In)
+        x: x0 + (d - edge) * Math.cos(theta3In) + edge * Math.cos(theta3In + tuck),
+        z: z0 - (d - edge) * Math.sin(theta3In) - edge * Math.sin(theta3In + tuck)
       };
     }
     const u = s4 - s;
@@ -425,12 +471,37 @@
     };
   };
 
+  // The profile is piecewise linear between these creases and the outer layer ramp.
+  FFS.profileIntersection = function (st, g, fold) {
+    const cuts = [0, Math.max(0, g.s2 - 10), g.s2, g.s2 + st.B2 / 2, g.s4, g.s5,
+      g.s5 + st.B2 / 2, g.s7, g.s8, st.B];
+    const ends = [...new Set(cuts.filter(x => x <= st.B))];
+    const points = ends.map(x => FFS.evalProfile(x, fold, st, g));
+    for (let i = 0; i + 1 < points.length; i++) {
+      const a = points[i], b = points[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      for (let j = i + 2; j + 1 < points.length; j++) {
+        const c = points[j], d = points[j + 1];
+        const ex = d.x - c.x, ez = d.z - c.z;
+        const det = dx * ez - dz * ex;
+        if (Math.abs(det) < 1e-8) continue;
+        const t = ((c.x - a.x) * ez - (c.z - a.z) * ex) / det;
+        const u = ((c.x - a.x) * dz - (c.z - a.z) * dx) / det;
+        if (t > 1e-7 && t < 1 - 1e-7 && u > 1e-7 && u < 1 - 1e-7) {
+          return { x: a.x + t * dx, z: a.z + t * dz };
+        }
+      }
+    }
+    return null;
+  };
+
   // Split 7 rigid panels at the 6 sharp creases so every face has crisp un-averaged 3D normals
   FFS.getProfilePanels = function (S) {
     const st = S || FFS.state;
     const g = FFS.getGeom(st);
-    const maxS = Math.max(st.B, g.sumB, 1);
+    const maxS = st.B;
     const cuts = [0, g.s2, g.s2 + st.B2 / 2, g.s4, g.s5, g.s5 + st.B2 / 2, g.s7, maxS];
+    if (g.b4Eff + st.T2 > st.B1 && g.s8 > g.s7 && g.s8 < maxS) cuts.splice(-1, 0, g.s8);
     const panels = [];
 
     for (let i = 0; i < cuts.length - 1; i++) {

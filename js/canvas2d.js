@@ -90,12 +90,13 @@
       { key: 'T2', label: 'T2', a: g.s8, b: g.sumB, fill: '#f1f5f9' }
     ];
 
+    const film = rectX(0, S.B);
     const deferredBadges = [];
 
     // Clip film interior
     ctx2d.save();
     ctx2d.beginPath();
-    ctx2d.rect(ox, oy, webW, webH);
+    ctx2d.rect(film.x, oy, film.w, webH);
     ctx2d.clip();
 
     segs.forEach(sg => {
@@ -157,7 +158,7 @@
     // Uploaded OM artwork overlay (XOR flip keeps artwork locked to film T1..T2 in both normal & mirrored 2D)
     if (S.omShow2D && typeof FFS.hasArtwork === 'function' && FFS.hasArtwork()) {
       const effFlipX = Boolean(S.omFlipX) !== Boolean(S.mirror2d);
-      FFS.drawArtworkOnCtx(ctx2d, ox, oy, webW, webH, effFlipX, Boolean(S.omRot180), (S.omOpacity2D ?? 55) / 100, S);
+      FFS.drawArtworkOnCtx(ctx2d, film.x, oy, film.w, webH, effFlipX, Boolean(S.omRot180), (S.omOpacity2D ?? 55) / 100, S);
     }
 
     // Transverse weld seams & dead zones (top / bottom along A)
@@ -237,8 +238,8 @@
         ctx2d.stroke();
         ctx2d.restore();
       }
-      if (g.backOverlap > 0.5) {
-        const r = rectX(g.seamS1, g.s8);
+      if (g.channel) {
+        const r = rectX(g.channel.left, g.channel.right);
         ctx2d.fillStyle = 'rgba(147,51,234,0.10)';
         ctx2d.fillRect(r.x, oy, r.w, webH);
       }
@@ -261,6 +262,7 @@
       S.E.forEach((val, idx) => {
         if (val === null) return;
         const st = FFS.getStripBounds(val, S.embW, S.embAlign);
+        if (st.right < 0 || st.left > S.B) return;
         const r = rectX(st.left, st.right);
         const hitF = (st.right > g.s2 && st.left < g.s4) || (st.right > g.s5 && st.left < g.s7) || st.left < 0 || st.right > S.B;
 
@@ -295,6 +297,7 @@
       S.P.forEach((val, idx) => {
         if (val === null) return;
         const pst = FFS.getStripBounds(val, S.perfW, S.perfAlign || 'left');
+        if (pst.right < 0 || pst.left > S.B) return;
         const r = rectX(pst.left, pst.right);
         ctx2d.save();
         ctx2d.fillStyle = 'rgba(37,99,235,0.11)';
@@ -345,7 +348,7 @@
     if (S.pmOn) {
       const r = rectX(S.pmX, S.pmX + S.pmW);
       const py = y2p(S.pmY);
-      const pw = Math.max(4, r.w), ph = Math.max(4, S.pmH * scale);
+      const pw = r.w, ph = S.pmH * scale;
       ctx2d.fillStyle = S.pmColor;
       ctx2d.fillRect(r.x, py, pw, ph);
       ctx2d.strokeStyle = '#ef4444';
@@ -359,7 +362,7 @@
     // Outer film frame
     ctx2d.strokeStyle = '#0f172a';
     ctx2d.lineWidth = 1.6;
-    ctx2d.strokeRect(ox, oy, webW, webH);
+    ctx2d.strokeRect(film.x, oy, film.w, webH);
 
     if (S.transOn) {
       const tr = FFS.getTransverseGeom(S);
@@ -486,7 +489,7 @@
 
   function drawCutMatrix2D(cx, cy, scale, pat, color, label) {
     const { cols, rows } = FFS.parseMatrix(pat);
-    const dx = Math.max(4, 7 * scale), dy = Math.max(6, 14 * scale), len = Math.max(4, 9 * scale);
+    const dx = 7 * scale, dy = 14 * scale, len = 9 * scale;
     const startX = cx - ((cols - 1) * dx) / 2;
     ctx2d.save();
     ctx2d.strokeStyle = color;
@@ -592,7 +595,8 @@
     if (!inlineTarget) return;
     const S = FFS.state;
     const v = FFS.parseLocaleNumber(inlineInput.value);
-    if (Number.isFinite(v)) {
+    if (!Number.isFinite(v)) FFS.showToast('Ошибка ввода числа. Размер сохранён.');
+    if (Number.isFinite(v) && v !== FFS.parseLocaleNumber(inlineTarget.val)) {
       FFS.ui.symNote = '';
       const lim = {
         A: [150, 2500], B1: [80, 1500], B2: [10, 600],
@@ -600,7 +604,7 @@
         B3: [S.t1InB3 ? S.T1 + 10 : 10, 1200]
       };
       if (inlineTarget.type === 'dimArr') {
-        S[inlineTarget.arr][inlineTarget.idx] = clamp(v, 0, S.B);
+        S[inlineTarget.arr][inlineTarget.idx] = Math.max(0, v);
       } else if (inlineTarget.key === 'B') {
         S.autoB = false;
         S.B = clamp(v, 200, 3000);
@@ -613,6 +617,7 @@
         const k = inlineTarget.key;
         const pair = lim[k] || [0, Math.max(S.B, S.A, 1)];
         S[k] = clamp(v, pair[0], pair[1]);
+        if (k === 'T1' && S.t1InB3) S.B3 = Math.max(S.B3, S.T1 + 10);
         FFS.recalcBalance(S);
       }
       FFS.syncStateToInputs();
@@ -633,13 +638,14 @@
     });
     inlineInput.addEventListener('blur', commitInlineEdit);
 
-    canvas2d.addEventListener('mousedown', e => {
+    canvas2d.addEventListener('pointerdown', e => {
       const rect = canvas2d.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
       if (inlineTarget) commitInlineEdit();
 
       const hit = hitTest2D(mx, my);
       if (hit && (hit.type === 'dim' || hit.type === 'dimArr') && e.button === 0) {
+        e.preventDefault();
         openInlineEdit(hit);
         return;
       }
@@ -654,7 +660,7 @@
       dragState = { pan: true, startX: mx, startY: my, origPX: pan2dX, origPY: pan2dY };
     });
 
-    window.addEventListener('mousemove', e => {
+    window.addEventListener('pointermove', e => {
       const rect = canvas2d.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
 
@@ -689,7 +695,7 @@
       FFS.ui.symNote = '';
 
       if (h.type === 'bound') {
-        if (h.key === 'T1') { S.T1 = clamp(o.T1 + dxMm, 0, 150); tipText = `T1 = ${S.T1} мм`; }
+        if (h.key === 'T1') { S.T1 = clamp(o.T1 + dxMm, 0, S.t1InB3 ? Math.min(150, S.B3 - 10) : 150); tipText = `T1 = ${S.T1} мм`; }
         else if (h.key === 'B3') { S.B3 = clamp(o.B3 + dxMm, S.t1InB3 ? S.T1 + 10 : 10, 1200); tipText = `B3 = ${S.B3} мм`; }
         else if (h.key === 'B2L') { S.B2 = clamp(o.B2 + dxMm, 10, 600); tipText = `B2 = ${S.B2} мм`; }
         else if (h.key === 'B2R') { S.B2 = clamp(o.B2 + Math.round(rawDx / 2), 10, 600); tipText = `B2 = ${S.B2} мм`; }
@@ -722,7 +728,8 @@
         tipText = `P${h.idx + 1} = ${S.P[h.idx]} мм`;
       } else if (h.type === 'seam') {
         const k = h.key + 'off';
-        S[k] = clamp(o[k] + dxMm, -250, 250);
+        const base = h.key === 'S3' && o.S3off === 0 ? FFS.getGeom(o).seamS3 - FFS.getGeom(o).seamS1 : o[k];
+        S[k] = dxMm === 0 ? o[k] : base + dxMm;
         tipText = `${h.key} сдвиг = ${S[k]} мм`;
       } else if (h.type === 'pm') {
         S.pmX = clamp(o.pmX + dxMm, 0, Math.max(0, S.B - S.pmW));
@@ -749,14 +756,16 @@
       FFS.updateAll(false);
     });
 
-    window.addEventListener('mouseup', () => {
+    const endDrag = () => {
       if (dragState) {
-        const wasBound = dragState.frozenLayout !== null;
+        const wasBound = Boolean(dragState.frozenLayout);
         dragState = null;
         $('drag-tip').style.display = 'none';
         if (wasBound) FFS.updateAll(true);
       }
-    });
+    };
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 
     canvas2d.addEventListener('wheel', e => {
       e.preventDefault();
