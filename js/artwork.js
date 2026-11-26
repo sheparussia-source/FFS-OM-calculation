@@ -287,6 +287,142 @@
     if (typeof FFS.showToast === 'function') FFS.showToast('Рамка макета ОМ применена');
   };
 
+  // Края полотна сходятся на продольном шве. Сравниваем полоску макета у свободного края
+  // с полоской, которая приходит к ней по шву S1. Это пиксели картинки, не распознавание букв.
+  FFS.analyzeSeamArtwork = function (S) {
+    if (!FFS.hasArtwork() || typeof FFS.getGeom !== 'function') return [];
+    const st = S || FFS.state;
+    const g = FFS.getGeom(st);
+    const label = 'Стык рисунка на шве';
+    const filmB = Math.max(st.B, g.sumB, 1);
+    const lip = Math.max(0, st.T1);
+    const seamCut = g.seamS1 - lip;
+    if (!(seamCut > 6) || seamCut > filmB - 1) {
+      return [{ label, status: 'warn', text: 'Шов S1 вне полотна, стык рисунка не проверить' }];
+    }
+
+    const band = 4;
+    const binMm = 2;
+    const ppm = 3;
+    const src = FFS.getArtworkSourceRect(st);
+    const paint = (x0, wMm) => {
+      const cw = Math.max(2, Math.round(wMm * ppm));
+      const ch = Math.max(2, Math.round(Math.max(st.A, 1) * ppm));
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cw, ch);
+      const fullW = filmB * ppm;
+      ctx.save();
+      ctx.translate(-x0 * ppm + fullW / 2, ch / 2);
+      if (st.omRot180) ctx.rotate(Math.PI);
+      if (st.omFlipX) ctx.scale(-1, 1);
+      ctx.drawImage(FFS.artwork.img, src.sx, src.sy, src.sw, src.sh, -fullW / 2, -ch / 2, fullW, ch);
+      ctx.restore();
+      return ctx.getImageData(0, 0, cw, ch);
+    };
+
+    const profile = (image, fromRight) => {
+      const cols = Math.max(1, Math.min(image.width, Math.round(band * ppm)));
+      const bin = Math.max(1, Math.round(binMm * ppm));
+      const bins = [];
+      for (let y0 = 0; y0 < image.height; y0 += bin) {
+        const y1 = Math.min(image.height, y0 + bin);
+        let sum = 0;
+        let n = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let k = 0; k < cols; k++) {
+            const x = fromRight ? (image.width - 1 - k) : k;
+            const i = (y * image.width + x) * 4;
+            const r = image.data[i];
+            const gch = image.data[i + 1];
+            const b = image.data[i + 2];
+            const dr = 255 - r;
+            const dg = 255 - gch;
+            const db = 255 - b;
+            sum += Math.sqrt(dr * dr + dg * dg + db * db);
+            n++;
+          }
+        }
+        bins.push(sum / n);
+      }
+      return bins;
+    };
+
+    const corrAt = (a, b, shift) => {
+      let a0 = 0;
+      let b0 = 0;
+      let n = Math.min(a.length, b.length) - Math.abs(shift);
+      if (shift > 0) a0 = shift;
+      else b0 = -shift;
+      if (n < 8) return 0;
+      let ma = 0;
+      let mb = 0;
+      for (let i = 0; i < n; i++) {
+        ma += a[a0 + i];
+        mb += b[b0 + i];
+      }
+      ma /= n;
+      mb /= n;
+      let va = 0;
+      let vb = 0;
+      let cov = 0;
+      for (let i = 0; i < n; i++) {
+        const da = a[a0 + i] - ma;
+        const db = b[b0 + i] - mb;
+        va += da * da;
+        vb += db * db;
+        cov += da * db;
+      }
+      if (va < 1 || vb < 1) return 0;
+      return cov / Math.sqrt(va * vb);
+    };
+
+    const seamImg = paint(seamCut - band, band);
+    const edgeImg = paint(0, band);
+    const seamProf = profile(seamImg, true);
+    const edgeProf = profile(edgeImg, false);
+    const maxShift = Math.round(12 / binMm);
+    let bestShift = 0;
+    let best = -1;
+    for (let s = -maxShift; s <= maxShift; s++) {
+      const c = corrAt(seamProf, edgeProf, s);
+      if (c > best) {
+        best = c;
+        bestShift = s;
+      }
+    }
+    const shiftMm = Math.round(bestShift * binMm * 10) / 10;
+    const flat = (arr) => {
+      let m = 0;
+      for (let i = 0; i < arr.length; i++) m += arr[i];
+      m /= arr.length;
+      let v = 0;
+      for (let i = 0; i < arr.length; i++) {
+        const d = arr[i] - m;
+        v += d * d;
+      }
+      return v / arr.length < 4;
+    };
+
+    if (flat(seamProf) && flat(edgeProf)) {
+      return [{ label, status: 'muted', text: 'На шве S1 рисунка нет' }];
+    }
+    if (best < 0.62) {
+      return [{ label, status: 'warn', text: 'На шве S1 рисунок не продолжается' }];
+    }
+    if (Math.abs(shiftMm) > 3) {
+      return [{
+        label,
+        status: 'warn',
+        text: `На шве S1 строки не сходятся, смещение ${Math.abs(shiftMm)} мм`
+      }];
+    }
+    return [{ label, status: 'ok', text: 'Рисунок на шве S1 продолжается' }];
+  };
+
   FFS.initArtworkEvents = function () {
     const fileInp = $('in-om-file');
     if (fileInp) {
