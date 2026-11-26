@@ -7,7 +7,7 @@
 
   let scene = null, camera = null, renderer = null;
   let bagMesh = null, bagGeo = null, bagMat = null, bagTex = null, gridHelper = null;
-  let loopStarted = false;
+  let framePending = false;
 
   const texCanvas = document.createElement('canvas');
   texCanvas.width = 2048;
@@ -34,6 +34,7 @@
       camTarget.z + camDist * Math.sin(camPhi) * Math.cos(camTheta)
     );
     camera.lookAt(camTarget.x, camTarget.y, camTarget.z);
+    requestFrame();
   }
 
   FFS.reframe3D = function () {
@@ -58,6 +59,7 @@
       bagMat.opacity = FFS.ui.xrayOn ? 0.48 : 1.0;
       bagMat.depthWrite = !FFS.ui.xrayOn;
       bagMat.needsUpdate = true;
+      requestFrame();
     }
   };
 
@@ -72,11 +74,16 @@
     // Clear any prior loading/error message before appending WebGL canvas
     mount.innerHTML = '';
 
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch {
+      mount.innerHTML = '<div class="three-status">WebGL недоступен. Чертёж и сечение X–Z продолжают работать.</div>';
+      return;
+    }
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a);
 
     camera = new THREE.PerspectiveCamera(40, mount.clientWidth / Math.max(1, mount.clientHeight), 0.1, 300);
-    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
@@ -106,10 +113,10 @@
     FFS.setXray(FFS.ui.xrayOn);
 
     const dom = renderer.domElement;
-    dom.addEventListener('mousedown', e => {
+    dom.addEventListener('pointerdown', e => {
       orbitDrag = { btn: e.button, x: e.clientX, y: e.clientY, th: camTheta, ph: camPhi, tx: camTarget.x, ty: camTarget.y };
     });
-    window.addEventListener('mousemove', e => {
+    window.addEventListener('pointermove', e => {
       if (!orbitDrag) return;
       const dx = e.clientX - orbitDrag.x, dy = e.clientY - orbitDrag.y;
       if (orbitDrag.btn === 0) {
@@ -122,7 +129,9 @@
       }
       updateCamera();
     });
-    window.addEventListener('mouseup', () => { orbitDrag = null; });
+    const endOrbit = () => { orbitDrag = null; };
+    window.addEventListener('pointerup', endOrbit);
+    window.addEventListener('pointercancel', endOrbit);
     dom.addEventListener('contextmenu', e => e.preventDefault());
     dom.addEventListener('wheel', e => {
       e.preventDefault();
@@ -134,10 +143,7 @@
     updateCamera();
     FFS.update3DTexture();
     FFS.update3DGeometry();
-    if (!loopStarted) {
-      loopStarted = true;
-      animateLoop();
-    }
+    requestFrame();
   };
 
   FFS.resize3D = function () {
@@ -146,9 +152,11 @@
     camera.aspect = mount.clientWidth / Math.max(1, mount.clientHeight);
     camera.updateProjectionMatrix();
     renderer.setSize(mount.clientWidth, mount.clientHeight);
+    requestFrame();
   };
 
   FFS.update3DTexture = function () {
+    if (!bagTex) return;
     const S = FFS.state;
     const gm = FFS.getGeom(S);
     const TW = texCanvas.width, TH = texCanvas.height;
@@ -157,7 +165,7 @@
     g2.fillStyle = '#f8fafc';
     g2.fillRect(0, 0, TW, TH);
 
-    const filmB = Math.max(S.B, gm.sumB, 1);
+    const filmB = S.B;
     const sx = mm => (mm / filmB) * TW;
     const sy = mm => (mm / Math.max(S.A, 1)) * TH;
 
@@ -198,7 +206,7 @@
 
     if (!hideBase) {
       // Aspect-ratio compensated "ЛИЦО" graphic sized strictly to fit inside B1
-      const pxPerMmX = TW / Math.max(S.B, gm.sumB, 1);
+      const pxPerMmX = TW / S.B;
       const pxPerMmY = TH / Math.max(S.A, 1);
       const titleMm = clamp(Math.min(S.B1 * 0.24, S.A * 0.14), 22, 95);
       const subMm = titleMm * 0.34;
@@ -259,6 +267,7 @@
       S.E.forEach(v => {
         if (v === null) return;
         const st = FFS.getStripBounds(v, S.embW, S.embAlign);
+        if (st.right < 0 || st.left > S.B) return;
         const x0 = sx(st.left), w = sx(S.embW);
         g2.save();
         g2.fillStyle = 'rgba(71,85,105,0.24)';
@@ -276,6 +285,7 @@
       S.P.forEach(v => {
         if (v === null) return;
         const pst = FFS.getStripBounds(v, S.perfW, S.perfAlign || 'left');
+        if (pst.right < 0 || pst.left > S.B) return;
         const x0 = sx(pst.left), w = sx(S.perfW);
         g2.fillStyle = 'rgba(37,99,235,0.14)';
         g2.fillRect(x0, 0, w, TH);
@@ -317,7 +327,7 @@
       { on: S.S2, xMm: gm.seamS2, col: '#ea580c' },
       { on: S.S3, xMm: gm.seamS3, col: '#9333ea' }
     ].forEach(sm => {
-      if (!sm.on || sm.xMm < 0 || sm.xMm > Math.max(S.B, gm.sumB)) return;
+      if (!sm.on || sm.xMm < 0 || sm.xMm > S.B) return;
       const x = sx(sm.xMm);
       g2.save();
       g2.strokeStyle = sm.col;
@@ -336,6 +346,8 @@
     const S = FFS.state;
     const f = FFS.ui.foldPct / 100;
     const panels = FFS.getProfilePanels(S);
+    const geom = FFS.getGeom(S);
+    const filmB = S.B;
     const rows = 2;
     const worldScale = 0.01;
 
@@ -343,7 +355,7 @@
 
     let minZ = Infinity, maxZ = -Infinity;
     const panelPts = panels.map(ss => ss.map(s => {
-      const p = FFS.evalProfile(s, f, S);
+      const p = FFS.evalProfile(s, f, S, geom);
       if (p.z < minZ) minZ = p.z;
       if (p.z > maxZ) maxZ = p.z;
       return { s, x: p.x, z: p.z };
@@ -361,7 +373,7 @@
         for (let c = 0; c < cols; c++) {
           const p = pts[c];
           positions.push(p.x * worldScale, y, (p.z - cz) * worldScale);
-          uvs.push(p.s / Math.max(S.B, FFS.getGeom(S).sumB, 1), v);
+          uvs.push(p.s / filmB, v);
         }
       }
       for (let r = 0; r < rows; r++) {
@@ -376,14 +388,26 @@
       vertOffset += (rows + 1) * cols;
     });
 
-    bagGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    bagGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    bagGeo.setIndex(indices);
-    // r128 computeVertexNormals does not grow an existing normal buffer.
-    // Vertices added after a size change (the T2 edge) would stay at zero and shade black.
-    const prevN = bagGeo.getAttribute('normal');
-    if (prevN && prevN.count !== positions.length / 3) bagGeo.deleteAttribute('normal');
+    const position = bagGeo.getAttribute('position');
+    if (!position || position.array.length !== positions.length) {
+      bagGeo.dispose();
+      bagGeo = new THREE.BufferGeometry();
+      bagMesh.geometry = bagGeo;
+      bagGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+      bagGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      bagGeo.setIndex(indices);
+    } else {
+      position.array.set(positions);
+      position.needsUpdate = true;
+      const uv = bagGeo.getAttribute('uv');
+      uv.array.set(uvs);
+      uv.needsUpdate = true;
+      bagGeo.index.array.set(indices);
+      bagGeo.index.needsUpdate = true;
+    }
     bagGeo.computeVertexNormals();
+    bagGeo.computeBoundingSphere();
+    requestFrame();
   };
 
   FFS.drawCrossSection = function () {
@@ -399,7 +423,7 @@
     const panels = FFS.getProfilePanels(S);
     const flatS = [];
     panels.forEach(arr => arr.forEach(s => flatS.push(s)));
-    const pts = flatS.map(s => ({ s, ...FFS.evalProfile(s, f, S) }));
+    const pts = flatS.map(s => ({ s, ...FFS.evalProfile(s, f, S, g) }));
 
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     pts.forEach(p => {
@@ -410,6 +434,10 @@
     const ox = W / 2 - ((minX + maxX) / 2) * sc;
     const oy = H / 2 + ((minZ + maxZ) / 2) * sc;
 
+    const intersection = FFS.profileIntersection(S, g, f);
+    const warning = $('warn-profile');
+    warning.hidden = !intersection;
+    if (bagMesh) bagMesh.visible = !intersection;
     gx.lineWidth = 2.2;
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
@@ -425,15 +453,20 @@
       gx.lineTo(ox + b.x * sc, oy - b.z * sc);
       gx.stroke();
     }
-    const filmB = Math.max(S.B, g.sumB);
-    if (S.S1 && g.seamS1 <= filmB) {
+    if (intersection) {
+      gx.fillStyle = '#ef4444';
+      gx.beginPath();
+      gx.arc(ox + intersection.x * sc, oy - intersection.z * sc, 4, 0, Math.PI * 2);
+      gx.fill();
+    }
+    if (S.S1 && g.seamS1 >= 0 && g.seamS1 <= S.B) {
       const sp = FFS.evalProfile(g.seamS1, f, S);
       gx.fillStyle = '#ef4444';
       gx.beginPath();
       gx.arc(ox + sp.x * sc, oy - sp.z * sc, 3.2, 0, Math.PI * 2);
       gx.fill();
     }
-    if (S.S3 && g.seamS3 <= filmB && g.backOverlap > 0.5) {
+    if (S.S3 && g.seamS3 >= 0 && g.seamS3 <= S.B) {
       const sp3 = FFS.evalProfile(g.seamS3, f, S);
       gx.fillStyle = '#a855f7';
       gx.beginPath();
@@ -446,16 +479,24 @@
     FFS.ui.isPlaying = !FFS.ui.isPlaying;
     FFS.ui.foldTarget = null;
     $('btn-play').textContent = FFS.ui.isPlaying ? '❚❚' : '▶';
+    requestFrame();
   };
 
   FFS.animateFoldTo = function (target) {
     FFS.ui.isPlaying = false;
     $('btn-play').textContent = '▶';
     FFS.ui.foldTarget = target;
+    requestFrame();
   };
 
-  function animateLoop() {
+  function requestFrame() {
+    if (framePending) return;
+    framePending = true;
     requestAnimationFrame(animateLoop);
+  }
+
+  function animateLoop() {
+    framePending = false;
     if (FFS.ui.isPlaying) {
       FFS.ui.foldPct += FFS.ui.playDir * 0.45;
       if (FFS.ui.foldPct >= 100) { FFS.ui.foldPct = 100; FFS.ui.playDir = -1; }
@@ -471,6 +512,7 @@
       FFS.update3DGeometry();
       FFS.drawCrossSection();
     }
-    if (renderer && scene && camera) renderer.render(scene, camera);
+    if (renderer && $('pane-3d').offsetWidth) renderer.render(scene, camera);
+    if (FFS.ui.isPlaying || FFS.ui.foldTarget !== null) requestFrame();
   }
 })(window);
