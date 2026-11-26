@@ -353,8 +353,9 @@
   };
 
   // ===================== SEQUENTIAL COLLISION-FREE 3D KINEMATICS =====================
-  // Stage 1 (0..50%): side walls lift, inner flap B3+T1 closes, then outer flap B4+T2
-  // lands outside it (-gap). The right-hand web edge covers the left-hand edge.
+  // Stage 1 (0..50%): side walls lift. Inner lip T2 (32 mm, right edge, B4) closes first.
+  // Outer lip T1 (8 mm, left edge, B3) closes second and sits outside it (-gap), so the
+  // 8 mm edge covers the 32 mm edge.
   // Stage 2 (50..100%): M-gussets tuck cleanly inward preserving arc-length with zero layer intrusion
   FFS.evalProfile = function (s, fold01, S) {
     const st = S || FFS.state;
@@ -377,8 +378,8 @@
 
     const theta1 = p1Side * alpha;
     const theta2 = p1Side * (Math.PI - alpha);
-    const theta3Inner = theta2 + p1In * (Math.PI - theta2);
-    const theta3Outer = theta2 + p1Out * (Math.PI - theta2);
+    const theta3In  = theta2 + p1In  * (Math.PI - theta2);
+    const theta3Out = theta2 + p1Out * (Math.PI - theta2);
 
     if (s >= s4 && s <= s5) {
       return { x: -halfB1 + (s - s4), z: 0 };
@@ -398,10 +399,9 @@
       const d = u - st.B2;
       const x0 = halfB1 + halfB2 * (Math.cos(theta1) + Math.cos(theta2));
       const z0 = -halfB2 * (Math.sin(theta1) + Math.sin(theta2));
-      const outZ = -gap * p1Out * Math.min(1.0, d / 10.0);
       return {
-        x: x0 + d * Math.cos(theta3Outer),
-        z: z0 - d * Math.sin(theta3Outer) + outZ
+        x: x0 + d * Math.cos(theta3In),
+        z: z0 - d * Math.sin(theta3In)
       };
     }
     const u = s4 - s;
@@ -418,9 +418,10 @@
     const d = u - st.B2;
     const x0 = -halfB1 - halfB2 * (Math.cos(theta1) + Math.cos(theta2));
     const z0 = -halfB2 * (Math.sin(theta1) + Math.sin(theta2));
+    const outZ = -gap * p1Out * Math.min(1.0, d / 10.0);
     return {
-      x: x0 - d * Math.cos(theta3Inner),
-      z: z0 - d * Math.sin(theta3Inner)
+      x: x0 - d * Math.cos(theta3Out),
+      z: z0 - d * Math.sin(theta3Out) + outZ
     };
   };
 
@@ -438,10 +439,12 @@
       if (b - a < 0.05) continue;
 
       const set = new Set([a, b]);
-      if (i === 0 && g.s1L > a && g.s1L < b) set.add(g.s1L);
+      // Kink where the outer 8 mm lip T1 finishes stepping outside the inner one.
+      if (i === 0 && g.s2 - 10 > a && g.s2 - 10 < b) {
+        set.add(g.s2 - 10);
+        if (g.s1L > a && g.s1L < b) set.add(g.s1L);
+      }
       if (i === 6) {
-        // Kink where the outer flap B4 finishes stepping outside the inner one.
-        if (g.s7 + 10 > a && g.s7 + 10 < b) set.add(g.s7 + 10);
         if (g.seamS1 > a && g.seamS1 < b) set.add(g.seamS1);
         if (g.s8 > a && g.s8 < b) set.add(g.s8);
       }
